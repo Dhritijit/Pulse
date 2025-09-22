@@ -1,0 +1,100 @@
+# ===========================================
+# PULSE - AI-Powered Social Media Analyzer
+# Security-First .gitignore
+# ===========================================
+
+# 🔐 SECRETS & ENVIRONMENT VARIABLES
+# NEVER commit these!
+.env
+.env.*
+*.key
+secrets/
+credentials/
+config_private.py
+
+# 🐍 PYTHON GENERATED FILES
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 📦 VIRTUAL ENVIRONMENTS
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# 📝 LOGS & TEMPORARY FILES
+*.log
+logs/
+temp/
+tmp/
+*.tmp
+*.temp
+
+# 🎨 STREAMLIT
+.streamlit/
+
+# 📊 OUTPUT FILES (optional - uncomment if needed)
+# *.xlsx
+# *.csv
+# reports/
+
+# 💾 DATABASE FILES
+*.db
+*.sqlite3
+
+# 💻 IDE & EDITOR FILES
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 🌐 BROWSER DRIVERS
+chromedriver*
+geckodriver*
+*.crx
+
+# 💾 BACKUP FILES
+*.bak
+*.backup
+BACKUP_*/
+
+# 🧪 TESTING
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 📚 DOCUMENTATION BUILDS
+docs/_build/
+
+# 🗂️ CACHE DIRECTORIES
+cache/
+scraped_data/
+
+# 📦 COMPRESSED FILES
+*.zip
+*.tar.gz
+*.rar
