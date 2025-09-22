@@ -1,4 +1,4 @@
-# 🌊 Pulse - AI-Powered Social Media Review Analyzer
+# 🌊Pulse.ai – The signal behind the noise
 
 > Transform customer feedback into actionable insights with AI-powered analysis
 
