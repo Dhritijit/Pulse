@@ -1,182 +1,325 @@
-# 🌊 Pulse - AI-Powered Social Media Review Analyzer
+# 🌐 Pulse - Social Media Review Analyzer
 
-> Transform customer feedback into actionable insights with AI-powered analysis
+A comprehensive AI-powered solution for scraping and analyzing customer reviews from various review platforms. Features both a beautiful web interface and command-line tools.
 
-[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
-[![Streamlit](https://img.shields.io/badge/streamlit-1.28.1-FF4B4B.svg)](https://streamlit.io)
-[![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4-412991.svg)](https://openai.com)
+## 🆕 New Features (v2.0)
 
-## 🚀 What is Pulse?
+### 📁 File Upload Support
+- **Upload Excel/CSV files** directly instead of scraping
+- Automatic column detection (Comments, Date, Rating, etc.)
+- Support for up to 2,000 reviews per file
+- File validation and preview before processing
 
-Pulse is an **AI-powered review analysis tool** that helps businesses understand their customers better by:
+### 🏷️ Taxonomy-Based Categorization
+- **Upload your own taxonomy** with predefined categories
+- Keyword-based matching with stemming support
+- Hybrid approach: combines AI topics with your taxonomy
+- Multi-domain support (Sentiment, Travel, Insurance, Telecom, etc.)
 
-- 🌐 **Scraping reviews** from multiple platforms (Trustpilot, Glassdoor, Google Reviews, etc.)
-- 🤖 **AI analysis** using GPT-4 for sentiment and topic modeling
-- 📊 **Beautiful reports** with insights and recommendations
-- 🎨 **Easy-to-use** web interface and command-line tools
+## Features
 
-## ✨ Key Features
+- **Dual Data Input**: Upload files OR scrape from URLs
+- **Dynamic Web Scraping**: Supports Trustpilot, Glassdoor, and other platforms
+- **AI-Powered Analysis**: GPT-4 sentiment analysis, topic modeling, and trend detection
+- **Taxonomy Matching**: Map reviews to your predefined categories
+- **Beautiful Web Interface**: Real-time progress tracking with interactive charts
+- **Professional Reports**: Multi-sheet Excel reports with comprehensive insights
+- **Data Quality Controls**: Spam filtering, duplicate removal, validation
 
-### 📱 **Two Ways to Use Pulse**
-1. **Web Interface** - Beautiful, user-friendly dashboard
-2. **Command Line** - For advanced users and automation
+## Quick Start
 
-### 🎯 **What Pulse Analyzes**
-- ✅ **Sentiment**: Positive, negative, neutral classification
-- ✅ **Topics**: What customers talk about most
-- ✅ **Trends**: Changes over time
-- ✅ **Insights**: AI-generated recommendations
-
-### 🌐 **Supported Review Sites**
-- Trustpilot
-- Glassdoor  
-- Google Reviews
-- Yelp
-- Indeed
-- Ambitionbox
-- And many more...
-
-## 🛠️ Installation & Setup
-
-### **Prerequisites**
-- Python 3.7 or higher
+### Prerequisites
+- Python 3.7+
 - OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
-- Internet connection
+- Chrome browser (for URL scraping)
 
-### **Quick Setup**
+### Installation
 
-1. **Download or clone this project**
-2. **Open command prompt** in the project folder
-3. **Create virtual environment**:
-   ```bash
-   python -m venv venv
-   venv\Scripts\activate
-   ```
-4. **Install requirements**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-5. **Setup your API key**:
-   - Copy `.env.template` to `.env`
-   - Edit `.env` and add your OpenAI API key
-6. **Run Pulse**:
-   ```bash
-   python run.py
-   ```
-
-## 🎮 How to Use
-
-### **Easy Way - Web Interface**
-1. Run: `python run.py`
-2. Choose option 1
-3. Open browser to `http://localhost:8501`
-4. Enter review URLs and click "Start Analysis"
-5. View results and download reports!
-
-### **Advanced Way - Command Line**
-1. Run: `python run.py`
-2. Choose option 2
-3. Follow prompts to enter URLs
-4. Wait for analysis to complete
-5. Get Excel report with insights!
-
-## 📊 What You Get
-
-### **Excel Reports Include**:
-- 📋 Raw review data
-- 😊 Sentiment analysis breakdown
-- 🏷️ Topic modeling results
-- 📈 Trend analysis over time
-- 💡 AI-generated insights and recommendations
-
-### **Web Dashboard Shows**:
-- Real-time progress tracking
-- Interactive charts and graphs
-- Key metrics and statistics
-- Downloadable reports
-
-## ⚙️ Configuration
-
-### **Environment Variables (.env)**
-```env
-# Required: Your OpenAI API key
-OPENAI_API_KEY=your_api_key_here
-
-# Optional: Customize these settings
-MAX_REVIEWS_PER_SITE=1000
-DEFAULT_DELAY=2
+1. **Clone the repository**
+```bash
+git clone https://github.com/YOUR_USERNAME/social-media-review-analyzer.git
+cd social-media-review-analyzer
 ```
 
-### **Advanced Settings**
-Edit `config.py` to customize:
-- Scraping delays and timeouts
-- AI analysis parameters
-- Output formats
+2. **Create virtual environment**
+```bash
+python -m venv venv
 
-## 🆘 Troubleshooting
+# Windows
+venv\Scripts\activate
 
-### **Common Issues**
+# Mac/Linux
+source venv/bin/activate
+```
 
-**❌ "No reviews found"**
-- Check if URLs are correct and accessible
-- Make sure URLs point to review pages, not search results
+3. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
 
-**❌ "OpenAI API error"**
-- Verify your API key in `.env` file
-- Check if you have OpenAI credits available
+4. **Setup environment**
+```bash
+# Copy template
+cp .env.template .env
 
-**❌ "Module not found"**
-- Make sure virtual environment is activated
-- Run `pip install -r requirements.txt` again
+# Edit .env and add your OpenAI API key
+# OPENAI_API_KEY=sk-your-api-key-here
+```
 
-**❌ "Slow processing"**
-- This is normal for large datasets
-- Be patient, especially with 500+ reviews
+5. **Run the application**
+```bash
+# Web interface (recommended)
+streamlit run app.py
 
-### **Need Help?**
-1. Check the logs in the `logs/` folder
-2. Run `python run.py` and choose option 3 for help
-3. Create an issue on GitHub
+# Command line
+python main.py
 
-## 🔒 Privacy & Ethics
+# Or use the launcher
+python run.py
+```
 
-Pulse respects website terms and user privacy:
-- ✅ Only scrapes publicly available reviews
-- ✅ Implements rate limiting to be respectful
-- ✅ No personal data storage beyond public reviews
-- ✅ Follows robots.txt guidelines
+## 📊 Usage Guide
 
-## 📈 Roadmap
+### Option 1: Upload Review File
 
-**Coming Soon**:
-- 🔄 Real-time monitoring
-- 📧 Email reports
-- 🌍 Multi-language support
-- 📱 Mobile interface
-- 🔌 API endpoints
+1. Launch the web interface: `streamlit run app.py`
+2. Choose "Upload File (Excel/CSV)" option
+3. Upload your file with review data
+4. (Optional) Upload taxonomy file for categorization
+5. Click "Start Analysis"
+6. Download your comprehensive Excel report
+
+**File Requirements:**
+- Formats: `.xlsx`, `.xls`, or `.csv`
+- Required column: Review text (auto-detected from columns like "Comments", "Review", "Text", "Feedback")
+- Optional columns: Date, Rating, Source
+- Maximum: 2,000 reviews per file
+- Maximum size: 50 MB
+
+**Example File Structure:**
+```csv
+Date,Comments,Rating,Source
+2024-01-15,"Great service, very helpful",5,Google Reviews
+2024-01-16,"Poor experience, long wait times",2,Trustpilot
+```
+
+### Option 2: Scrape from URLs
+
+1. Launch the web interface: `streamlit run app.py`
+2. Choose "Scrape from URLs" option
+3. Paste review site URLs (one per line)
+4. Configure settings in sidebar
+5. Click "Start Analysis"
+6. Download your comprehensive Excel report
+
+**Supported Sites:**
+- Trustpilot
+- Glassdoor
+- Google Reviews
+- Yelp
+- Most other review sites (automatic detection)
+
+### 🏷️ Using Taxonomy Categorization
+
+1. **Prepare your taxonomy file** (Excel format):
+   - Create sheets for different domains (e.g., "Sentiment_Emotions", "Travel", "Insurance")
+   - Include columns: `High Level Category`, `Taxonomy Name`, `Taxonomy Intent`, `Phrases`
+   - Add comma-separated keywords in the `Phrases` column
+
+**Example Taxonomy Structure:**
+```
+Sheet: Sentiment_Emotions
+┌──────────────────┬───────────────┬─────────────────────────┬──────────────────────────┐
+│ High Level Cat.  │ Taxonomy Name │ Taxonomy Intent         │ Phrases                  │
+├──────────────────┼───────────────┼─────────────────────────┼──────────────────────────┤
+│ High Level       │ Happy         │ Happy customer emotion  │ happy, delighted, love,  │
+│                  │               │                         │ excellent, amazing, glad │
+├──────────────────┼───────────────┼─────────────────────────┼──────────────────────────┤
+│ High Level       │ Angry         │ Angry customer emotion  │ angry, disgusted, hate,  │
+│                  │               │                         │ frustrated, appalled     │
+└──────────────────┴───────────────┴─────────────────────────┴──────────────────────────┘
+```
+
+2. **Upload in the interface**:
+   - Go to sidebar → "Taxonomy Configuration"
+   - Upload your taxonomy Excel file
+   - Check "Use Taxonomy Matching"
+   - Run analysis
+
+3. **Results include**:
+   - Top 3 matching categories per review
+   - Match scores and confidence levels
+   - Category distribution charts
+   - Taxonomy analysis sheet in Excel report
+
+## 📦 Project Structure
+
+```
+social-media-analyzer/
+├── app.py                      # Streamlit web interface (UPDATED)
+├── scraper.py                  # Web scraping module
+├── ai_analyzer.py              # AI analysis module
+├── file_processor.py           # File upload handler (NEW)
+├── taxonomy_matcher.py         # Taxonomy matching (NEW)
+├── excel_generator.py          # Report generation (UPDATED)
+├── config.py                   # Configuration
+├── main.py                     # CLI interface
+├── run.py                      # Easy launcher
+├── requirements.txt            # Dependencies (UPDATED)
+├── .env.template               # Environment template
+└── README.md                   # This file
+```
+
+## 🔧 Configuration
+
+Edit `config.py` or `.env` file to customize:
+
+- **OpenAI Settings**: Model, API key, embedding model
+- **Scraping Limits**: Max reviews per site, delays, retries
+- **Analysis Parameters**: Number of topics, sentiment categories
+- **File Limits**: Max file size, max reviews per upload
+
+## 📊 Output Report
+
+The Excel report includes:
+
+1. **Raw Reviews** - All review data with sentiment and taxonomy matches
+2. **Sentiment Analysis** - Distribution, confidence, emotions
+3. **Topic Analysis** - AI-discovered topics with keywords
+4. **Taxonomy Analysis** - Category matches and statistics (if enabled)
+5. **Trend Analysis** - Changes over time
+6. **Executive Summary** - Key metrics and AI insights
+
+## 🎯 How It Works
+
+### File Upload Flow
+```
+1. User uploads Excel/CSV file
+2. System detects columns automatically
+3. Validates and extracts reviews
+4. Runs AI sentiment analysis
+5. Discovers topics with AI
+6. Matches to taxonomy (if enabled)
+7. Generates comprehensive report
+```
+
+### Taxonomy Matching Process
+```
+1. Load taxonomy with keywords
+2. Stem keywords for better matching
+3. For each review:
+   - Check exact keyword matches
+   - Check stemmed keyword matches
+   - Score and rank categories
+4. Return top N matches with confidence
+5. Combine with AI-discovered topics
+```
+
+## 💡 Tips for Best Results
+
+### File Upload
+- Use clear column names (e.g., "Comments" not "Col1")
+- Include dates for trend analysis
+- Clean data beforehand (remove empty rows)
+- UTF-8 encoding for special characters
+
+### Taxonomy
+- Use comprehensive keyword lists
+- Include variations and synonyms
+- Organize by domain/category
+- Test with small datasets first
+
+### URL Scraping
+- Use direct review page URLs
+- Start with 100-500 reviews for testing
+- Check site's robots.txt
+- Respect rate limits
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**"No text columns detected"**
+- Solution: Rename your column to "Comments", "Review", or "Text"
+
+**"Taxonomy file upload failed"**
+- Solution: Ensure Excel file has correct structure (see example above)
+
+**"Analysis failed: OpenAI API error"**
+- Solution: Check API key, check credits, check internet connection
+
+**"No reviews found" (URL scraping)**
+- Solution: Verify URL is correct, check if site blocks scrapers
+
+**"File too large"**
+- Solution: Split into multiple files or filter to top reviews
+
+## 📝 Example Use Cases
+
+1. **Product Reviews Analysis**
+   - Upload Amazon/Shopify reviews
+   - Identify pain points and strengths
+   - Track sentiment over time
+
+2. **Employee Feedback**
+   - Upload Glassdoor reviews
+   - Categorize by department
+   - Identify improvement areas
+
+3. **Customer Support**
+   - Upload support tickets/feedback
+   - Match to predefined issue categories
+   - Prioritize by sentiment
+
+4. **Competitive Analysis**
+   - Scrape competitor reviews
+   - Compare sentiment trends
+   - Identify market gaps
+
+## 🔐 Privacy & Security
+
+- Review data processed locally
+- OpenAI API used only for analysis
+- No data stored on external servers
+- API keys stored in local `.env` file
 
 ## 🤝 Contributing
 
-We welcome contributions! Feel free to:
-- 🐛 Report bugs
-- 💡 Suggest features  
-- 🔧 Submit improvements
-- 📖 Improve documentation
+Contributions welcome! Please:
+1. Fork the repository
+2. Create feature branch
+3. Commit changes
+4. Push to branch
+5. Open pull request
 
 ## 📄 License
 
-This project is open source and available under the [MIT License](LICENSE).
+MIT License - see LICENSE file for details
 
-## 🙏 Credits
+## 🆘 Support
 
-Built with:
-- **OpenAI GPT-4** - For intelligent analysis
-- **Streamlit** - For beautiful web interface
-- **Python** - For everything else
-- **Love and Coffee** ☕ - For late night coding
+- **Issues**: [GitHub Issues](https://github.com/YOUR_USERNAME/social-media-review-analyzer/issues)
+- **Documentation**: See `/docs` folder
+- **Email**: your.email@example.com
+
+## 🎉 Acknowledgments
+
+- OpenAI for GPT-4 API
+- Streamlit for the web framework
+- NLTK for text processing
+- All open-source contributors
+
+## 🗺️ Roadmap
+
+- [ ] Real-time monitoring and alerts
+- [ ] Multi-language support
+- [ ] Custom AI model fine-tuning
+- [ ] API for integrations
+- [ ] Scheduled automated scraping
+- [ ] Advanced visualization dashboard
+- [ ] Export to PowerPoint
+- [ ] Slack/Teams integrations
 
 ---
 
-**Made with ❤️ for better customer insights**
-
-*Pulse - Understand your customers like never before*
+**Version 2.0** | Made with ❤️ for better customer insights

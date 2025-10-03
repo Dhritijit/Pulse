@@ -1,6 +1,6 @@
 """
-Beautiful Streamlit Web Interface for Social Media Review Analyzer
-Professional UI for analyzing customer reviews with AI
+Professional BI-Style Streamlit Interface for Social Media Review Analyzer
+Custom branding, hierarchical categories, and interactive dashboards
 """
 
 import streamlit as st
@@ -12,75 +12,176 @@ import time
 import os
 import logging
 from datetime import datetime
-from collections import Counter
+from collections import Counter, defaultdict
 import json
 import base64
+import tempfile
 
-# Configure page
+# Configure page - MUST be first Streamlit command
 st.set_page_config(
-    page_title="Social Media Review Analyzer",
+    page_title="Pulse Analytics",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Import our modules
+# Import modules
 try:
     from scraper import ReviewScraper
     from ai_analyzer import AIAnalyzer
     from excel_generator import ExcelGenerator
+    from file_processor import FileProcessor
+    from taxonomy_matcher import TaxonomyMatcher
     import config
 except ImportError as e:
-    st.error(f"⚠️ Import Error: {e}")
+    st.error(f"Import Error: {e}")
     st.stop()
 
-# Custom CSS for better styling
+# Custom CSS with brand colors
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 3rem;
-        font-weight: bold;
-        color: #1f77b4;
+    :root {
+        --sidebar-bg: #1B3C53;
+        --main-bg: #234C6A;
+        --card-bg: #2C5F7F;
+        --text-primary: #FFFFFF;
+        --text-secondary: #E0E0E0;
+        --accent: #4A90E2;
+        --success: #28a745;
+        --warning: #ffc107;
+        --danger: #dc3545;
+    }
+    
+    [data-testid="stSidebar"] {
+        background-color: #1B3C53 !important;
+    }
+    
+    [data-testid="stSidebar"] * {
+        color: #FFFFFF !important;
+    }
+    
+    .main {
+        background-color: #234C6A !important;
+    }
+    
+    .block-container {
+        background-color: #234C6A !important;
+        padding-top: 2rem !important;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+    }
+    
+    .stAlert, .stInfo, .stSuccess, .stWarning, .stError {
+        background-color: #2C5F7F !important;
+        color: #FFFFFF !important;
+        border-radius: 10px !important;
+        border-left: 4px solid #4A90E2 !important;
+    }
+    
+    [data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+        color: #4A90E2 !important;
+        font-weight: 700 !important;
+    }
+    
+    [data-testid="stMetricLabel"] {
+        color: #E0E0E0 !important;
+        font-size: 0.9rem !important;
+    }
+    
+    .stButton > button {
+        background: linear-gradient(90deg, #4A90E2 0%, #357ABD 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 0.6rem 2rem !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 12px rgba(74, 144, 226, 0.4) !important;
+    }
+    
+    .stProgress > div > div > div {
+        background: linear-gradient(90deg, #4A90E2 0%, #357ABD 100%) !important;
+    }
+    
+    [data-testid="stFileUploader"] {
+        background-color: #2C5F7F !important;
+        border-radius: 10px !important;
+        padding: 1rem !important;
+        border: 2px dashed #4A90E2 !important;
+    }
+    
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2rem !important;
+        background-color: transparent !important;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        background-color: #2C5F7F !important;
+        color: #FFFFFF !important;
+        border-radius: 8px 8px 0 0 !important;
+        padding: 0.8rem 2rem !important;
+        font-weight: 600 !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(180deg, #4A90E2 0%, #2C5F7F 100%) !important;
+    }
+    
+    .logo-container {
         text-align: center;
+        padding: 1rem 0 2rem 0;
+        border-bottom: 2px solid #2C5F7F;
         margin-bottom: 2rem;
     }
-    .subtitle {
-        font-size: 1.2rem;
-        color: #666;
-        text-align: center;
-        margin-bottom: 3rem;
-    }
-    .metric-card {
-        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+    
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
         padding: 1rem;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-        margin: 0.5rem 0;
-    }
-    .success-box {
-        background: #d4edda;
-        border: 1px solid #c3e6cb;
-        border-radius: 5px;
-        padding: 1rem;
+        background: linear-gradient(90deg, #2C5F7F 0%, transparent 100%);
+        border-left: 4px solid #4A90E2;
+        border-radius: 4px;
         margin: 1rem 0;
     }
-    .warning-box {
-        background: #fff3cd;
-        border: 1px solid #ffeaa7;
-        border-radius: 5px;
-        padding: 1rem;
-        margin: 1rem 0;
+    
+    .section-icon {
+        font-size: 1.5rem;
     }
-    .error-box {
-        background: #f8d7da;
-        border: 1px solid #f5c6cb;
-        border-radius: 5px;
-        padding: 1rem;
+    
+    .bi-card {
+        background: linear-gradient(135deg, #2C5F7F 0%, #1B3C53 100%);
+        border-radius: 12px;
+        padding: 1.5rem;
         margin: 1rem 0;
+        border: 1px solid #4A90E2;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     }
-    .stProgress .st-bo {
-        background-color: #667eea;
+    
+    .dataframe {
+        background-color: #2C5F7F !important;
+        color: #FFFFFF !important;
+    }
+    
+    .stRadio > label {
+        background-color: #2C5F7F !important;
+        padding: 0.5rem 1rem !important;
+        border-radius: 8px !important;
+        margin: 0.2rem 0 !important;
+    }
+    
+    .streamlit-expanderHeader {
+        background-color: #2C5F7F !important;
+        color: #FFFFFF !important;
+        border-radius: 8px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -90,18 +191,45 @@ class StreamlitAnalyzer:
         self.scraper = None
         self.analyzer = None
         self.excel_generator = None
+        self.file_processor = None
+        self.taxonomy_matcher = None
         
-    def initialize_components(self):
-        """Initialize analyzer components with error handling"""
+    def initialize_components(self, taxonomy_file=None):
+        """Initialize analyzer components"""
         try:
             self.scraper = ReviewScraper()
             self.analyzer = AIAnalyzer()
             self.excel_generator = ExcelGenerator()
+            self.file_processor = FileProcessor()
+            
+            if taxonomy_file:
+                self.taxonomy_matcher = TaxonomyMatcher(taxonomy_file)
+            
             return True
         except Exception as e:
-            st.error(f"❌ Initialization Error: {str(e)}")
+            st.error(f"Initialization Error: {str(e)}")
             return False
+    
+    def process_uploaded_file(self, uploaded_file, max_reviews):
+        """Process uploaded review file"""
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
+                tmp_file.write(uploaded_file.getvalue())
+                tmp_path = tmp_file.name
             
+            is_valid, message = self.file_processor.validate_file(tmp_path)
+            if not is_valid:
+                os.unlink(tmp_path)
+                return None, message
+            
+            reviews = self.file_processor.process_uploaded_file(tmp_path, max_reviews)
+            os.unlink(tmp_path)
+            
+            return reviews, f"Successfully processed {len(reviews)} reviews"
+            
+        except Exception as e:
+            return None, f"Error processing file: {str(e)}"
+    
     def validate_url(self, url):
         """Validate URL format"""
         from urllib.parse import urlparse
@@ -110,7 +238,7 @@ class StreamlitAnalyzer:
             return all([result.scheme, result.netloc])
         except:
             return False
-            
+    
     def process_urls(self, urls):
         """Process and validate URLs"""
         valid_urls = []
@@ -122,109 +250,134 @@ class StreamlitAnalyzer:
                 valid_urls.append(url)
             elif url:
                 invalid_urls.append(url)
-                
-        return valid_urls, invalid_urls
         
-    def run_analysis(self, urls, max_reviews, progress_bar, status_text):
-        """Run the complete analysis pipeline"""
+        return valid_urls, invalid_urls
+    
+    def create_hierarchical_topics(self, topics, topic_assignments, taxonomy_matches):
+        """Create hierarchical topic structure (Level 1 -> Level 2)"""
+        hierarchical = defaultdict(lambda: {'level2': defaultdict(int), 'total': 0})
+        
+        if taxonomy_matches:
+            for matches in taxonomy_matches:
+                if matches:
+                    level1 = matches[0].get('high_level_category', 'Other')
+                    level2 = matches[0].get('category', 'Uncategorized')
+                    hierarchical[level1]['level2'][level2] += 1
+                    hierarchical[level1]['total'] += 1
+        
+        if not hierarchical:
+            for assignment in topic_assignments:
+                level1 = 'AI Discovered Topics'
+                level2 = assignment.get('topic_name', 'Unknown')
+                hierarchical[level1]['level2'][level2] += 1
+                hierarchical[level1]['total'] += 1
+        
+        return dict(hierarchical)
+    
+    def run_analysis(self, reviews, use_taxonomy, progress_bar, status_text):
+        """Run complete analysis pipeline"""
         results = {
             'reviews': [],
             'sentiment_results': [],
             'topics': {},
             'topic_assignments': [],
+            'taxonomy_matches': [],
+            'hierarchical_topics': {},
             'trends': {},
             'insights': '',
             'filename': ''
         }
         
         try:
-            # Phase 1: Scraping
-            status_text.text("🔍 Phase 1: Scraping reviews...")
-            progress_bar.progress(10)
+            results['reviews'] = reviews
             
-            all_reviews = []
-            for i, url in enumerate(urls):
-                status_text.text(f"🔍 Scraping {i+1}/{len(urls)}: {url[:50]}...")
-                reviews = self.scraper.scrape_reviews(url, max_pages=5)
-                if reviews:
-                    cleaned_reviews = self.scraper.clean_reviews(reviews)
-                    all_reviews.extend(cleaned_reviews[:max_reviews])
-                    
-                progress = 10 + (i + 1) * 20 // len(urls)
-                progress_bar.progress(progress)
-                
-            if not all_reviews:
-                st.error("❌ No reviews found. Please check your URLs.")
-                return None
-                
-            results['reviews'] = all_reviews
-            st.success(f"✅ Scraped {len(all_reviews)} reviews successfully!")
+            # Phase 1: Sentiment Analysis
+            progress_bar.progress(20)
+            status_text.text("Phase 1: AI Sentiment Analysis...")
             
-            # Phase 2: Sentiment Analysis
-            progress_bar.progress(35)
-            status_text.text("🤖 Phase 2: Analyzing sentiment with AI...")
-            
-            sentiment_results = self.analyzer.analyze_sentiment_batch(all_reviews)
+            sentiment_results = self.analyzer.analyze_sentiment_batch(reviews)
             results['sentiment_results'] = sentiment_results
             
-            progress_bar.progress(55)
-            st.success(f"✅ Sentiment analysis complete!")
+            progress_bar.progress(40)
             
-            # Phase 3: Topic Modeling
-            status_text.text("📊 Phase 3: Extracting topics and themes...")
+            # Phase 2: Topic Modeling
+            status_text.text("Phase 2: Topic Discovery...")
             
-            topics, topic_assignments = self.analyzer.extract_topics(all_reviews)
+            topics, topic_assignments = self.analyzer.extract_topics(reviews)
             results['topics'] = topics
             results['topic_assignments'] = topic_assignments
             
-            progress_bar.progress(75)
-            st.success(f"✅ Identified {len(topics)} main topics!")
+            progress_bar.progress(60)
+            
+            # Phase 3: Taxonomy Matching
+            if use_taxonomy and self.taxonomy_matcher:
+                status_text.text("Phase 3: Category Matching...")
+                
+                taxonomy_matches = self.taxonomy_matcher.categorize_reviews_batch(reviews, top_n=3)
+                results['taxonomy_matches'] = taxonomy_matches
+                
+                progress_bar.progress(75)
+            
+            # Create hierarchical structure
+            results['hierarchical_topics'] = self.create_hierarchical_topics(
+                topics, topic_assignments, results.get('taxonomy_matches', [])
+            )
             
             # Phase 4: Trend Analysis
-            status_text.text("📈 Phase 4: Analyzing trends...")
+            status_text.text("Phase 4: Trend Analysis...")
             
-            # Add sentiment to reviews for trend analysis
             reviews_with_sentiment = []
-            for i, review in enumerate(all_reviews):
+            for i, review in enumerate(reviews):
                 review_copy = review.copy()
                 if i < len(sentiment_results):
                     review_copy['sentiment'] = sentiment_results[i]['sentiment']
                 reviews_with_sentiment.append(review_copy)
-                
+            
             trends = self.analyzer.analyze_trends(reviews_with_sentiment)
             results['trends'] = trends
             
             progress_bar.progress(85)
             
             # Phase 5: Generate Insights
-            status_text.text("💡 Phase 5: Generating AI insights...")
+            status_text.text("Phase 5: AI Insights...")
             
             insights = self.analyzer.generate_insights(sentiment_results, topics, trends)
             results['insights'] = insights
             
             progress_bar.progress(95)
             
-            # Phase 6: Generate Excel Report
-            status_text.text("📄 Phase 6: Creating Excel report...")
+            # Phase 6: Generate Report
+            status_text.text("Phase 6: Creating Report...")
             
             filename = self.excel_generator.generate_report(
-                reviews=all_reviews,
+                reviews=reviews,
                 sentiment_results=sentiment_results,
                 topics=topics,
                 topic_assignments=topic_assignments,
                 trends=trends,
-                insights=insights
+                insights=insights,
+                taxonomy_matches=results.get('taxonomy_matches', [])
             )
             results['filename'] = filename
             
             progress_bar.progress(100)
-            status_text.text("✅ Analysis complete!")
+            status_text.text("Analysis Complete!")
             
             return results
             
         except Exception as e:
-            st.error(f"❌ Analysis failed: {str(e)}")
+            st.error(f"Analysis failed: {str(e)}")
             return None
+
+def load_logo():
+    """Load and display logo"""
+    logo_path = "logo.png"
+    if os.path.exists(logo_path):
+        with open(logo_path, "rb") as f:
+            logo_data = base64.b64encode(f.read()).decode()
+        return f'<img src="data:image/png;base64,{logo_data}" style="max-width: 180px; margin: auto; display: block;">'
+    else:
+        return '<h2 style="text-align: center; color: #4A90E2;">PULSE</h2>'
 
 def create_download_link(filename):
     """Create download link for Excel file"""
@@ -232,286 +385,396 @@ def create_download_link(filename):
         with open(filename, 'rb') as f:
             data = f.read()
         b64 = base64.b64encode(data).decode()
-        href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}">📥 Download Excel Report</a>'
+        href = f'<a href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}" style="color: #4A90E2; text-decoration: none; font-weight: 600;">Download Excel Report</a>'
         return href
     except Exception as e:
-        return f"❌ Error creating download link: {e}"
+        return f"Error: {e}"
 
-def display_sentiment_chart(sentiment_results):
-    """Display sentiment analysis chart"""
-    sentiment_counts = Counter([r.get('sentiment', 'unknown') for r in sentiment_results])
+def display_hierarchical_topics(hierarchical_topics, total_reviews):
+    """Display hierarchical topic drill-down with volume percentages"""
+    st.markdown('<div class="section-header"><span class="section-icon">📊</span><h3>Topic Distribution - Hierarchical View</h3></div>', unsafe_allow_html=True)
     
-    # Create pie chart
-    fig = px.pie(
-        values=list(sentiment_counts.values()),
-        names=list(sentiment_counts.keys()),
-        title="Sentiment Distribution",
-        color_discrete_map={
-            'positive': '#28a745',
-            'negative': '#dc3545',
-            'neutral': '#ffc107'
-        }
-    )
-    fig.update_layout(height=400)
-    st.plotly_chart(fig, use_container_width=True)
+    for level1, data in hierarchical_topics.items():
+        level1_count = data['total']
+        level1_pct = (level1_count / total_reviews * 100) if total_reviews > 0 else 0
+        
+        with st.expander(f"{level1} ({level1_count} reviews, {level1_pct:.1f}%)", expanded=True):
+            level2_data = data['level2']
+            
+            if level2_data:
+                df = pd.DataFrame([
+                    {
+                        'Category': cat,
+                        'Count': count,
+                        '% of Total': f"{(count/total_reviews*100):.1f}%",
+                        '% of Parent': f"{(count/level1_count*100):.1f}%"
+                    }
+                    for cat, count in sorted(level2_data.items(), key=lambda x: x[1], reverse=True)
+                ])
+                
+                st.dataframe(df, use_container_width=True, hide_index=True)
+                
+                fig = go.Figure()
+                
+                categories = list(level2_data.keys())
+                values = list(level2_data.values())
+                percentages = [(v/total_reviews*100) for v in values]
+                
+                fig.add_trace(go.Bar(
+                    y=categories,
+                    x=values,
+                    orientation='h',
+                    text=[f'{v} ({p:.1f}%)' for v, p in zip(values, percentages)],
+                    textposition='outside',
+                    marker=dict(
+                        color=values,
+                        colorscale='Blues',
+                        showscale=False
+                    ),
+                    hovertemplate='<b>%{y}</b><br>Count: %{x}<br><extra></extra>'
+                ))
+                
+                fig.update_layout(
+                    title=f"Level 2 Categories under {level1}",
+                    xaxis_title="Number of Reviews",
+                    yaxis_title="",
+                    height=max(300, len(categories) * 40),
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#FFFFFF'),
+                    showlegend=False
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
 
-def display_topic_chart(topics, topic_assignments):
-    """Display topic analysis chart"""
-    topic_counts = Counter([ta.get('topic_name', 'Unknown') for ta in topic_assignments])
+def display_bi_dashboard(results):
+    """Display BI-style dashboard with all metrics"""
+    st.markdown('<div class="section-header"><span class="section-icon">📈</span><h2>Executive Dashboard</h2></div>', unsafe_allow_html=True)
     
-    # Create bar chart
-    fig = px.bar(
-        x=list(topic_counts.keys()),
-        y=list(topic_counts.values()),
-        title="Topic Distribution",
-        labels={'x': 'Topics', 'y': 'Number of Reviews'}
-    )
-    fig.update_layout(height=400, xaxis_tickangle=-45)
-    st.plotly_chart(fig, use_container_width=True)
-
-def display_metrics(results):
-    """Display key metrics"""
-    reviews = results['reviews']
+    total_reviews = len(results['reviews'])
     sentiment_results = results['sentiment_results']
-    topics = results['topics']
-    
-    # Calculate metrics
-    total_reviews = len(reviews)
     sentiment_counts = Counter([r.get('sentiment', 'unknown') for r in sentiment_results])
     
+    # Top KPIs
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Total Reviews", total_reviews)
-        
+        st.markdown('<div class="bi-card">', unsafe_allow_html=True)
+        st.metric("Total Reviews", f"{total_reviews:,}")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
     with col2:
-        positive_pct = sentiment_counts.get('positive', 0) / total_reviews * 100 if total_reviews > 0 else 0
-        st.metric("Positive %", f"{positive_pct:.1f}%")
-        
+        positive_pct = (sentiment_counts.get('positive', 0) / total_reviews * 100) if total_reviews > 0 else 0
+        st.markdown('<div class="bi-card">', unsafe_allow_html=True)
+        st.metric("Positive Sentiment", f"{positive_pct:.1f}%", 
+                 delta=f"{sentiment_counts.get('positive', 0)} reviews")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
     with col3:
-        negative_pct = sentiment_counts.get('negative', 0) / total_reviews * 100 if total_reviews > 0 else 0
-        st.metric("Negative %", f"{negative_pct:.1f}%")
-        
+        negative_pct = (sentiment_counts.get('negative', 0) / total_reviews * 100) if total_reviews > 0 else 0
+        st.markdown('<div class="bi-card">', unsafe_allow_html=True)
+        st.metric("Negative Sentiment", f"{negative_pct:.1f}%",
+                 delta=f"{sentiment_counts.get('negative', 0)} reviews",
+                 delta_color="inverse")
+        st.markdown('</div>', unsafe_allow_html=True)
+    
     with col4:
-        st.metric("Topics Found", len(topics))
+        st.markdown('<div class="bi-card">', unsafe_allow_html=True)
+        st.metric("Categories", len(results.get('hierarchical_topics', {})))
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Sentiment Distribution Chart
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown('<div class="bi-card">', unsafe_allow_html=True)
+        st.markdown("### Sentiment Analysis")
+        
+        fig = go.Figure(data=[go.Pie(
+            labels=list(sentiment_counts.keys()),
+            values=list(sentiment_counts.values()),
+            hole=0.4,
+            marker=dict(colors=['#28a745', '#dc3545', '#ffc107']),
+            textinfo='label+percent',
+            textfont=dict(size=14, color='white')
+        )])
+        
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#FFFFFF'),
+            showlegend=True,
+            height=400
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown('<div class="bi-card">', unsafe_allow_html=True)
+        st.markdown("### Volume Distribution")
+        
+        if results.get('hierarchical_topics'):
+            all_categories = []
+            all_counts = []
+            
+            for level1, data in results['hierarchical_topics'].items():
+                for level2, count in data['level2'].items():
+                    all_categories.append(f"{level1}: {level2}")
+                    all_counts.append(count)
+            
+            sorted_data = sorted(zip(all_categories, all_counts), key=lambda x: x[1], reverse=True)[:10]
+            categories, counts = zip(*sorted_data) if sorted_data else ([], [])
+            
+            percentages = [(c/total_reviews*100) for c in counts]
+            
+            fig = go.Figure(data=[go.Bar(
+                y=list(categories),
+                x=list(counts),
+                orientation='h',
+                text=[f'{c} ({p:.1f}%)' for c, p in zip(counts, percentages)],
+                textposition='outside',
+                marker=dict(color='#4A90E2'),
+                hovertemplate='<b>%{y}</b><br>Count: %{x}<br><extra></extra>'
+            )])
+            
+            fig.update_layout(
+                title="Top 10 Categories by Volume",
+                xaxis_title="Number of Reviews",
+                yaxis_title="",
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#FFFFFF'),
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Hierarchical drill-down
+    st.markdown("---")
+    if results.get('hierarchical_topics'):
+        display_hierarchical_topics(results['hierarchical_topics'], total_reviews)
 
 def main():
-    """Main Streamlit application"""
-    
-    # Header
-    st.markdown('<h1 class="main-header">🌐 Pulse</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">AI-Powered Customer Review Analysis & Insights</p>', unsafe_allow_html=True)
+    """Main application"""
     
     # Initialize session state
     if 'analysis_results' not in st.session_state:
         st.session_state.analysis_results = None
     if 'analyzer' not in st.session_state:
         st.session_state.analyzer = StreamlitAnalyzer()
+    if 'taxonomy_file_uploaded' not in st.session_state:
+        st.session_state.taxonomy_file_uploaded = False
     
-    # Sidebar configuration
-    st.sidebar.header("⚙️ Configuration")
-    
-    # Check prerequisites
-    st.sidebar.subheader("📋 Prerequisites Check")
-    
-    # Check OpenAI API key
-    api_key_status = "✅ Set" if config.OPENAI_API_KEY and config.OPENAI_API_KEY != "your_openai_api_key_here" else "❌ Missing"
-    st.sidebar.write(f"**OpenAI API Key:** {api_key_status}")
-    
-    if api_key_status == "❌ Missing":
-        st.sidebar.error("Please set your OpenAI API key in the .env file")
-        st.stop()
-    
-    # Analysis settings
-    st.sidebar.subheader("🎛️ Analysis Settings")
-    max_reviews = st.sidebar.slider("Max reviews per site", 50, 2000, 500, 50)
-    
-    # Advanced settings
-    with st.sidebar.expander("🔧 Advanced Settings"):
-        batch_size = st.slider("Sentiment analysis batch size", 10, 50, 20)
-        num_topics = st.slider("Number of topics to extract", 3, 10, 5)
-    
-    # Main content area
-    tab1, tab2, tab3 = st.tabs(["🔍 Analysis", "📊 Results", "📚 Help"])
-    
-    with tab1:
-        st.header("🔗 Enter Review Site URLs")
-        st.write("Paste URLs from review sites like Trustpilot, Glassdoor, Google Reviews, Yelp, etc.")
+    # Sidebar with logo
+    with st.sidebar:
+        st.markdown('<div class="logo-container">', unsafe_allow_html=True)
+        st.markdown(load_logo(), unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        # URL input
-        url_input = st.text_area(
-            "URLs (one per line):",
-            height=150,
-            placeholder="https://www.trustpilot.com/review/company-name.com\nhttps://www.glassdoor.com/Reviews/Company-Reviews-E123456.htm\nhttps://www.yelp.com/biz/restaurant-name"
+        # Configuration section
+        st.markdown('<div class="section-header"><span class="section-icon">⚙️</span><h3>Configuration</h3></div>', unsafe_allow_html=True)
+        
+        # API Key status
+        api_key_status = "Active" if config.OPENAI_API_KEY and config.OPENAI_API_KEY != "your_openai_api_key_here" else "Missing"
+        st.info(f"**OpenAI API:** {api_key_status}")
+        
+        if api_key_status == "Missing":
+            st.error("Configure API key in .env file")
+            st.stop()
+        
+        # Taxonomy Configuration
+        st.markdown('<div class="section-header"><span class="section-icon">🏷️</span><h3>Taxonomy</h3></div>', unsafe_allow_html=True)
+        
+        taxonomy_file = st.file_uploader(
+            "Upload Taxonomy File",
+            type=['xlsx', 'xls'],
+            help="Excel file with predefined categories"
         )
         
-        # Process URLs
-        if url_input:
-            urls = [url.strip() for url in url_input.split('\n') if url.strip()]
-            valid_urls, invalid_urls = st.session_state.analyzer.process_urls(urls)
+        taxonomy_path = None
+        if taxonomy_file:
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
+                tmp_file.write(taxonomy_file.getvalue())
+                taxonomy_path = tmp_file.name
+            st.success("Taxonomy loaded")
+            st.session_state.taxonomy_file_uploaded = True
+        
+        use_taxonomy = st.checkbox(
+            "Enable Taxonomy Matching",
+            value=st.session_state.taxonomy_file_uploaded,
+            disabled=not st.session_state.taxonomy_file_uploaded
+        )
+        
+        # Analysis Settings
+        st.markdown('<div class="section-header"><span class="section-icon">🎛️</span><h3>Settings</h3></div>', unsafe_allow_html=True)
+        
+        max_reviews = st.slider("Max Reviews", 50, 2000, 500, 50)
+        
+        with st.expander("Advanced"):
+            batch_size = st.slider("Batch Size", 10, 50, 20)
+            num_topics = st.slider("Number of Topics", 3, 10, 5)
+    
+    # Main content area
+    st.markdown('<h1 style="text-align: center; color: #4A90E2; margin-bottom: 2rem;">Customer Insights Analytics Platform</h1>', unsafe_allow_html=True)
+    
+    tab1, tab2, tab3 = st.tabs(["Data Input", "Analytics Dashboard", "Documentation"])
+    
+    with tab1:
+        st.markdown('<div class="section-header"><span class="section-icon">📥</span><h2>Data Source Selection</h2></div>', unsafe_allow_html=True)
+        
+        data_source = st.radio(
+            "Choose your data input method:",
+            ["Upload File (Excel/CSV)", "Web Scraping (URLs)"],
+            horizontal=True
+        )
+        
+        all_reviews = []
+        uploaded_file = None
+        valid_urls = []
+        
+        if data_source == "Upload File (Excel/CSV)":
+            st.markdown('<div class="bi-card">', unsafe_allow_html=True)
+            st.markdown("### File Upload")
+            st.write("Upload Excel or CSV file containing customer reviews")
             
-            if valid_urls:
-                st.success(f"✅ {len(valid_urls)} valid URLs found")
-                with st.expander("View URLs"):
-                    for i, url in enumerate(valid_urls, 1):
-                        st.write(f"{i}. {url}")
+            uploaded_file = st.file_uploader(
+                "Select File",
+                type=['csv', 'xlsx', 'xls'],
+                help="File should contain review text in a column named 'Comments', 'Review', or similar"
+            )
+            
+            if uploaded_file:
+                st.success(f"{uploaded_file.name} uploaded ({len(uploaded_file.getvalue())/1024/1024:.2f} MB)")
+                
+                if st.button("Preview Data", use_container_width=True):
+                    try:
+                        if uploaded_file.name.endswith('.csv'):
+                            preview_df = pd.read_csv(uploaded_file, nrows=5)
+                        else:
+                            preview_df = pd.read_excel(uploaded_file, nrows=5)
                         
-            if invalid_urls:
-                st.warning(f"⚠️ {len(invalid_urls)} invalid URLs found")
-                with st.expander("View invalid URLs"):
-                    for url in invalid_urls:
-                        st.write(f"❌ {url}")
-        else:
-            valid_urls = []
+                        st.dataframe(preview_df, use_container_width=True)
+                        uploaded_file.seek(0)
+                    except Exception as e:
+                        st.error(f"Preview error: {e}")
             
+            st.markdown('</div>', unsafe_allow_html=True)
+        
+        else:
+            st.markdown('<div class="bi-card">', unsafe_allow_html=True)
+            st.markdown("### Web Scraping")
+            
+            url_input = st.text_area(
+                "Enter URLs (one per line):",
+                height=150,
+                placeholder="https://www.trustpilot.com/review/company.com"
+            )
+            
+            if url_input:
+                urls = [url.strip() for url in url_input.split('\n') if url.strip()]
+                valid_urls, invalid_urls = st.session_state.analyzer.process_urls(urls)
+                
+                if valid_urls:
+                    st.success(f"{len(valid_urls)} valid URLs")
+                if invalid_urls:
+                    st.warning(f"{len(invalid_urls)} invalid URLs")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
+        
         # Analysis button
+        st.markdown("---")
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("🚀 Start Analysis", type="primary", use_container_width=True):
-                if not valid_urls:
-                    st.error("❌ Please enter at least one valid URL")
+            if st.button("START ANALYSIS", type="primary", use_container_width=True):
+                if data_source == "Upload File (Excel/CSV)" and not uploaded_file:
+                    st.error("Please upload a file first")
+                elif data_source == "Web Scraping (URLs)" and not valid_urls:
+                    st.error("Please enter at least one URL")
                 else:
-                    # Initialize components
-                    if not st.session_state.analyzer.initialize_components():
+                    if not st.session_state.analyzer.initialize_components(taxonomy_path):
                         st.stop()
                     
-                    # Create progress indicators
                     progress_bar = st.progress(0)
                     status_text = st.empty()
                     
-                    # Run analysis
-                    with st.spinner("Analyzing reviews..."):
-                        results = st.session_state.analyzer.run_analysis(
-                            valid_urls, max_reviews, progress_bar, status_text
+                    if data_source == "Upload File (Excel/CSV)":
+                        status_text.text("Processing file...")
+                        progress_bar.progress(10)
+                        
+                        reviews, message = st.session_state.analyzer.process_uploaded_file(
+                            uploaded_file, max_reviews
                         )
                         
-                    if results:
-                        st.session_state.analysis_results = results
-                        st.success("🎉 Analysis completed successfully!")
-                        st.balloons()
+                        if not reviews:
+                            st.error(f"{message}")
+                            st.stop()
                         
-                        # Show quick preview
-                        st.subheader("📊 Quick Results Preview")
-                        display_metrics(results)
+                        all_reviews = reviews
+                    
+                    else:
+                        status_text.text("Scraping websites...")
+                        progress_bar.progress(5)
                         
-                        # Download link
-                        if results['filename']:
-                            download_link = create_download_link(results['filename'])
-                            st.markdown(download_link, unsafe_allow_html=True)
+                        for i, url in enumerate(valid_urls):
+                            status_text.text(f"Scraping {i+1}/{len(valid_urls)}...")
+                            reviews = st.session_state.analyzer.scraper.scrape_reviews(url, max_pages=5)
+                            if reviews:
+                                cleaned = st.session_state.analyzer.scraper.clean_reviews(reviews)
+                                all_reviews.extend(cleaned[:max_reviews])
+                            progress_bar.progress(5 + (i + 1) * 10 // len(valid_urls))
+                    
+                    if all_reviews:
+                        with st.spinner("Processing..."):
+                            results = st.session_state.analyzer.run_analysis(
+                                all_reviews, use_taxonomy, progress_bar, status_text
+                            )
+                        
+                        if results:
+                            st.session_state.analysis_results = results
+                            st.success("Analysis Complete!")
+                            st.balloons()
                             
-                        st.info("👆 Switch to the 'Results' tab to see detailed analysis!")
+                            if results['filename']:
+                                st.markdown(create_download_link(results['filename']), unsafe_allow_html=True)
     
     with tab2:
         if st.session_state.analysis_results:
-            results = st.session_state.analysis_results
-            
-            st.header("📊 Analysis Results")
-            
-            # Key metrics
-            st.subheader("📈 Key Metrics")
-            display_metrics(results)
-            
-            # Charts
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("😊 Sentiment Analysis")
-                display_sentiment_chart(results['sentiment_results'])
-                
-            with col2:
-                st.subheader("🏷️ Topic Analysis")
-                display_topic_chart(results['topics'], results['topic_assignments'])
-            
-            # Topics details
-            st.subheader("🔍 Detailed Topic Analysis")
-            for topic_id, topic in results['topics'].items():
-                with st.expander(f"📌 {topic.get('topic_name', f'Topic {topic_id + 1}')}"):
-                    st.write(f"**Description:** {topic.get('description', 'N/A')}")
-                    st.write(f"**Keywords:** {', '.join(topic.get('keywords', []))}")
-                    st.write(f"**Review Count:** {topic.get('review_count', 0)}")
-                    st.write(f"**Sentiment Tendency:** {topic.get('sentiment_tendency', 'N/A')}")
-            
-            # AI Insights
-            st.subheader("💡 AI-Generated Insights")
-            if results['insights']:
-                st.markdown(results['insights'])
-            else:
-                st.write("No insights generated.")
-            
-            # Sample reviews
-            st.subheader("📝 Sample Reviews")
-            if results['reviews']:
-                sample_size = min(5, len(results['reviews']))
-                for i in range(sample_size):
-                    review = results['reviews'][i]
-                    sentiment = results['sentiment_results'][i] if i < len(results['sentiment_results']) else {}
-                    
-                    with st.expander(f"Review {i+1} - {sentiment.get('sentiment', 'Unknown').title()}"):
-                        st.write(f"**Text:** {review.get('text', 'N/A')[:300]}...")
-                        st.write(f"**Rating:** {review.get('rating', 'N/A')}")
-                        st.write(f"**Source:** {review.get('source_domain', 'N/A')}")
-                        st.write(f"**Sentiment:** {sentiment.get('sentiment', 'N/A')} ({sentiment.get('confidence', 0):.2f} confidence)")
-            
-            # Download section
-            st.subheader("📥 Download Report")
-            if results['filename']:
-                download_link = create_download_link(results['filename'])
-                st.markdown(download_link, unsafe_allow_html=True)
-                
-                st.info(f"""
-                📊 **Your Excel report contains:**
-                - Raw reviews data with sentiment analysis
-                - Detailed sentiment breakdown and metrics
-                - Topic modeling with keywords and themes
-                - Trend analysis over time
-                - Executive summary with AI insights
-                """)
+            display_bi_dashboard(st.session_state.analysis_results)
         else:
-            st.info("👈 Start an analysis in the 'Analysis' tab to see results here!")
+            st.info("Run an analysis from the Data Input tab to view results")
     
     with tab3:
-        st.header("📚 How to Use")
+        st.markdown('<div class="section-header"><span class="section-icon">📖</span><h2>Documentation</h2></div>', unsafe_allow_html=True)
         
-        st.subheader("🎯 Getting Started")
         st.markdown("""
-        1. **Enter URLs**: Paste review site URLs in the Analysis tab
-        2. **Configure Settings**: Adjust settings in the sidebar
-        3. **Start Analysis**: Click the "Start Analysis" button
-        4. **View Results**: Check the Results tab for insights
-        5. **Download Report**: Get your Excel report with full analysis
-        """)
+        ### Getting Started
+        1. Upload your taxonomy file (sidebar)
+        2. Choose data source (upload file or scrape URLs)
+        3. Configure analysis settings
+        4. Click "Start Analysis"
+        5. View results in Analytics Dashboard
         
-        st.subheader("🌐 Supported Sites")
-        st.markdown("""
-        - **Trustpilot**: Company review pages
-        - **Glassdoor**: Employee reviews and company ratings
-        - **Google Reviews**: Business and location reviews
-        - **Yelp**: Restaurant and business reviews
-        - **Most other review sites**: Automatic detection
-        """)
+        ### Features
+        - **Hierarchical Categories**: Level 1 to Level 2 drill-down
+        - **Volume Analysis**: See percentage of total reviews per category
+        - **BI-Style Dashboard**: Professional analytics interface
+        - **AI-Powered Insights**: Automated pattern detection
         
-        st.subheader("📊 What You Get")
-        st.markdown("""
-        - **Sentiment Analysis**: Positive, negative, neutral classification
-        - **Topic Modeling**: Key themes and topics in reviews
-        - **Trend Analysis**: Changes over time
-        - **AI Insights**: Strategic recommendations
-        - **Professional Excel Report**: Multi-sheet analysis
-        """)
+        ### Taxonomy Format
+        Your Excel taxonomy should have:
+        - **High Level Category**: Level 1 (e.g., "Billing Issues")
+        - **Taxonomy Name**: Level 2 (e.g., "High Bill", "Incorrect Bill")
+        - **Phrases**: Comma-separated keywords
         
-        st.subheader("⚡ Tips for Best Results")
-        st.markdown("""
-        - Use direct links to review pages (not search results)
-        - Start with smaller datasets (100-500 reviews) for testing
-        - Make sure review pages are publicly accessible
-        - Check your OpenAI API credits before large analyses
-        """)
-        
-        st.subheader("❓ Common Issues")
-        st.markdown("""
-        - **No reviews found**: Check URL format and accessibility
-        - **Analysis failed**: Verify OpenAI API key and credits
-        - **Slow processing**: Large datasets take time (5-15 minutes for 1000+ reviews)
+        ### Tips
+        - Start with 100-500 reviews for testing
+        - Use descriptive Level 1 categories
+        - Add multiple Level 2 sub-categories per Level 1
+        - Include keyword variations in taxonomy
         """)
 
 if __name__ == "__main__":

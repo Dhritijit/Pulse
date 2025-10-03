@@ -1,0 +1,275 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #021526;
+  color: #ffffff;
+  overflow-x: hidden;
+}
+
+.app {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background: #0a1929;
+  border-right: 1px solid #1e3a5f;
+  padding: 25px 20px;
+  position: fixed;
+  height: 100vh;
+  left: 0;
+  top: 0;
+  overflow-y: auto;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #1e3a5f;
+}
+
+.logo-image {
+  width: 400px;
+  height: auto;
+  max-height: 40px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+.logo-text {
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.5px;
+}
+
+.sidebar-section {
+  margin-bottom: 25px;
+}
+
+.sidebar-title {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.config-item {
+  margin-bottom: 20px;
+}
+
+.config-label {
+  color: #8b9dc3;
+  font-size: 13px;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.status-badge {
+  background: #1e3a5f;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.slider-container {
+  margin-top: 10px;
+}
+
+.slider-container label {
+  color: #8b9dc3;
+  font-size: 12px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.slider {
+  width: 100%;
+  height: 4px;
+  background: #1e3a5f;
+  outline: none;
+  border-radius: 2px;
+  -webkit-appearance: none;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #4ade80;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #4ade80;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.upload-section {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.file-input {
+  display: none;
+}
+
+.upload-btn {
+  background: #1e3a5f;
+  color: #ffffff;
+  border: 1px solid #2d5a7b;
+  padding: 6px 16px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.upload-btn:hover {
+  background: #2d5a7b;
+  border-color: #4a90e2;
+}
+
+.taxonomy-status {
+  color: #8b9dc3;
+  font-size: 11px;
+  margin-top: 8px;
+  font-style: italic;
+}
+
+/* Main Content */
+.main-content {
+  margin-left: 280px;
+  flex: 1;
+  background: #021526;
+  min-height: 100vh;
+}
+
+/* Top Navigation */
+.top-nav {
+  background: #0a1929;
+  border-bottom: 1px solid #1e3a5f;
+  padding: 20px 40px;
+  display: flex;
+  gap: 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-button {
+  padding: 12px 28px;
+  background: transparent;
+  color: #8b9dc3;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-button:hover:not(:disabled) {
+  color: #ffffff;
+  background: rgba(74, 144, 226, 0.15);
+  transform: translateY(-1px);
+}
+
+.nav-button.active {
+  color: #ffffff;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d5a7b 100%);
+  box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);
+}
+
+.nav-button.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+  border-radius: 2px 2px 0 0;
+}
+
+.nav-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Content Area */
+.content-area {
+  padding: 40px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 80px;
+    padding: 20px 10px;
+  }
+
+  .logo-text {
+    display: none;
+  }
+
+  .main-content {
+    margin-left: 80px;
+  }
+
+  .top-nav {
+    padding: 15px 20px;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .content-area {
+    padding: 20px;
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a1929;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2d5a7b;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a90e2;
+}
