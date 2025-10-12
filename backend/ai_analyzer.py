@@ -1,9 +1,10 @@
 """
 AI-powered analysis module using OpenAI
 Handles sentiment analysis, topic modeling, and trend detection
+NOW WITH HIERARCHICAL TOPIC CLASSIFICATION (Level 1 → Level 2)
 """
 
-import openai
+from openai import OpenAI
 import pandas as pd
 import numpy as np
 import logging
@@ -33,7 +34,7 @@ class AIAnalyzer:
         if not config.OPENAI_API_KEY:
             raise ValueError("OpenAI API key not found. Please set OPENAI_API_KEY in your .env file")
         
-        openai.api_key = config.OPENAI_API_KEY
+        self.client = OpenAI(api_key=config.OPENAI_API_KEY)
         self.logger.info("OpenAI client initialized")
         
     def analyze_sentiment_batch(self, reviews, batch_size=20):
@@ -75,7 +76,7 @@ class AIAnalyzer:
         prompt = self._create_sentiment_prompt(review_texts)
         
         try:
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=config.OPENAI_MODEL,
                 messages=[
                     {"role": "system", "content": "You are an expert sentiment analyzer. Analyze customer reviews and provide detailed sentiment analysis."},
@@ -180,12 +181,12 @@ class AIAnalyzer:
             
         return results
         
-    def extract_topics(self, reviews, num_topics=None):
-        """Extract topics using GPT-4 and embeddings"""
-        if num_topics is None:
-            num_topics = config.NUM_TOPICS
-            
-        self.logger.info(f"Starting topic modeling for {len(reviews)} reviews")
+    def extract_topics(self, reviews):
+        """
+        Extract topics using GPT-4 with HIERARCHICAL STRUCTURE (Level 1 → Level 2)
+        NEW: Creates proper taxonomy tree with Level 1 and Level 2 categories
+        """
+        self.logger.info(f"Starting hierarchical topic modeling for {len(reviews)} reviews")
         
         # Sample reviews for topic extraction if too many
         if len(reviews) > 100:
@@ -194,99 +195,65 @@ class AIAnalyzer:
             sampled_reviews = reviews
             
         try:
-            # Get embeddings for clustering
-            embeddings = self._get_embeddings([r.get('text', '') for r in sampled_reviews])
+            # Step 1: Let LLM create hierarchical topic structure
+            hierarchical_topics = self._create_hierarchical_topics(sampled_reviews)
+            self.logger.info(f"LLM created {len(hierarchical_topics)} Level 1 topics with Level 2 subcategories")
             
-            # Perform clustering
-            clusters = self._cluster_reviews(embeddings, num_topics)
+            # Step 2: Assign topics to all reviews
+            topic_assignments = self._assign_hierarchical_topics(reviews, hierarchical_topics)
             
-            # Extract topics from each cluster
-            topics = self._extract_cluster_topics(sampled_reviews, clusters, num_topics)
-            
-            # Assign topics to all reviews
-            all_embeddings = self._get_embeddings([r.get('text', '') for r in reviews])
-            topic_assignments = self._assign_topics_to_reviews(all_embeddings, topics)
-            
-            return topics, topic_assignments
+            return hierarchical_topics, topic_assignments
             
         except Exception as e:
-            self.logger.error(f"Error in topic modeling: {e}")
-            return self._fallback_topic_extraction(reviews, num_topics)
-            
-    def _get_embeddings(self, texts):
-        """Get OpenAI embeddings for texts"""
-        embeddings = []
-        batch_size = 50
+            self.logger.error(f"Error in hierarchical topic modeling: {e}")
+            # Fallback: Try simpler approach
+            return self._fallback_hierarchical_extraction(reviews)
+    
+    def _create_hierarchical_topics(self, reviews):
+        """
+        NEW METHOD: Ask LLM to create hierarchical Level 1 → Level 2 topic structure
+        """
+        # Sample reviews for analysis
+        sample_size = min(30, len(reviews))
+        sample_reviews = np.random.choice(reviews, sample_size, replace=False)
         
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
-            
-            try:
-                response = openai.Embedding.create(
-                    model=config.OPENAI_EMBEDDING_MODEL,
-                    input=batch
-                )
-                
-                batch_embeddings = [item['embedding'] for item in response['data']]
-                embeddings.extend(batch_embeddings)
-                
-                time.sleep(0.5)  # Rate limiting
-                
-            except Exception as e:
-                self.logger.error(f"Error getting embeddings: {e}")
-                # Fill with zeros for failed batches
-                embeddings.extend([[0] * 1536 for _ in batch])
-                
-        return np.array(embeddings)
-        
-    def _cluster_reviews(self, embeddings, num_clusters):
-        """Cluster reviews using K-means"""
-        if len(embeddings) < num_clusters:
-            num_clusters = len(embeddings)
-            
-        kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10)
-        clusters = kmeans.fit_predict(embeddings)
-        
-        return clusters
-        
-    def _extract_cluster_topics(self, reviews, clusters, num_topics):
-        """Extract topics from each cluster using GPT-4"""
-        topics = {}
-        
-        for cluster_id in range(num_topics):
-            cluster_reviews = [reviews[i] for i, c in enumerate(clusters) if c == cluster_id]
-            
-            if not cluster_reviews:
-                continue
-                
-            # Sample reviews from cluster
-            sample_size = min(10, len(cluster_reviews))
-            sample_reviews = np.random.choice(cluster_reviews, sample_size, replace=False)
-            
-            topic = self._analyze_cluster_topic(sample_reviews, cluster_id)
-            topics[cluster_id] = topic
-            
-        return topics
-        
-    def _analyze_cluster_topic(self, reviews, cluster_id):
-        """Analyze topic for a specific cluster"""
-        review_texts = [r.get('text', '')[:300] for r in reviews]
+        review_texts = [r.get('text', '')[:400] for r in sample_reviews]
         combined_text = "\n---\n".join(review_texts)
         
         prompt = f"""
-        Analyze the following customer reviews and identify the main topic/theme they share.
-        Provide:
-        1. Topic name (2-4 words)
-        2. Topic description (1-2 sentences)
-        3. Key keywords (5-8 words)
-        4. Sentiment tendency (positive/negative/mixed)
+        Analyze these customer reviews and create a HIERARCHICAL topic taxonomy with 2 levels:
         
-        Respond in JSON format:
+        LEVEL 1: Broad categories (3-5 main themes)
+        LEVEL 2: Specific sub-topics under each Level 1 category (2-4 per Level 1)
+        
+        Requirements:
+        - Level 1 names should be clear, broad categories (e.g., "Billing Issues", "Customer Service", "Product Quality")
+        - Level 2 names should be specific issues under each Level 1 (e.g., under "Billing Issues": "High Charges", "Incorrect Bill")
+        - Every topic must have a descriptive name (NO "Topic 1", "Topic 2", etc.)
+        - Each Level 2 topic must belong to exactly one Level 1 parent
+        
+        Respond with ONLY a JSON object in this EXACT format:
         {{
-            "topic_name": "Customer Service",
-            "description": "Reviews discussing customer service experiences and support quality",
-            "keywords": ["support", "service", "help", "staff", "response"],
-            "sentiment_tendency": "mixed"
+            "level1_topics": [
+                {{
+                    "id": "L1_1",
+                    "name": "Billing Issues",
+                    "description": "Problems related to billing and charges",
+                    "level2_topics": [
+                        {{"id": "L2_1_1", "name": "High Charges", "description": "Complaints about high bills"}},
+                        {{"id": "L2_1_2", "name": "Incorrect Bill", "description": "Billing errors and discrepancies"}}
+                    ]
+                }},
+                {{
+                    "id": "L1_2",
+                    "name": "Customer Service",
+                    "description": "Customer support and service quality",
+                    "level2_topics": [
+                        {{"id": "L2_2_1", "name": "Poor Response Time", "description": "Slow customer service"}},
+                        {{"id": "L2_2_2", "name": "Unhelpful Staff", "description": "Staff not resolving issues"}}
+                    ]
+                }}
+            ]
         }}
         
         Reviews:
@@ -294,94 +261,204 @@ class AIAnalyzer:
         """
         
         try:
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=config.OPENAI_MODEL,
                 messages=[
-                    {"role": "system", "content": "You are an expert at identifying themes and topics in customer feedback."},
+                    {"role": "system", "content": "You are an expert at creating hierarchical taxonomies from customer feedback. Always provide descriptive, meaningful category names."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=1500
+            )
+            
+            result_text = response.choices[0].message.content
+            result = json.loads(result_text.strip().replace('```json', '').replace('```', ''))
+            
+            hierarchical_topics = result.get('level1_topics', [])
+            
+            # Validate that we have proper structure
+            if not hierarchical_topics or len(hierarchical_topics) == 0:
+                raise ValueError("No topics generated")
+            
+            # Ensure each Level 1 has Level 2 topics
+            for level1 in hierarchical_topics:
+                if 'level2_topics' not in level1 or not level1['level2_topics']:
+                    # If no Level 2, create a generic one
+                    level1['level2_topics'] = [{
+                        'id': f"{level1['id']}_1",
+                        'name': f"{level1['name']} - General",
+                        'description': f"General issues related to {level1['name']}"
+                    }]
+            
+            self.logger.info(f"✅ Created {len(hierarchical_topics)} Level 1 topics")
+            for topic in hierarchical_topics:
+                self.logger.info(f"  - {topic['name']}: {len(topic['level2_topics'])} Level 2 topics")
+            
+            return hierarchical_topics
+            
+        except Exception as e:
+            self.logger.error(f"Error creating hierarchical topics: {e}")
+            # Return a basic structure
+            return self._create_basic_hierarchy()
+    
+    def _create_basic_hierarchy(self):
+        """Create a basic 2-level hierarchy as fallback"""
+        return [
+            {
+                'id': 'L1_1',
+                'name': 'General Feedback',
+                'description': 'General customer feedback',
+                'level2_topics': [
+                    {'id': 'L2_1_1', 'name': 'Product Feedback', 'description': 'Comments about products'},
+                    {'id': 'L2_1_2', 'name': 'Service Feedback', 'description': 'Comments about service'}
+                ]
+            },
+            {
+                'id': 'L1_2',
+                'name': 'Issues and Complaints',
+                'description': 'Problems and complaints',
+                'level2_topics': [
+                    {'id': 'L2_2_1', 'name': 'Technical Issues', 'description': 'Technical problems'},
+                    {'id': 'L2_2_2', 'name': 'Service Issues', 'description': 'Service-related problems'}
+                ]
+            }
+        ]
+    
+    def _assign_hierarchical_topics(self, reviews, hierarchical_topics):
+        """
+        Assign each review to a Level 1 and Level 2 topic
+        """
+        topic_assignments = []
+        
+        # Create a flat list of all Level 2 topics with their Level 1 parent
+        all_topics = []
+        for level1 in hierarchical_topics:
+            for level2 in level1['level2_topics']:
+                all_topics.append({
+                    'level1_id': level1['id'],
+                    'level1_name': level1['name'],
+                    'level2_id': level2['id'],
+                    'level2_name': level2['name'],
+                    'combined_desc': f"{level1['name']}: {level2['name']} - {level2['description']}"
+                })
+        
+        # Process reviews in batches
+        batch_size = 20
+        for i in range(0, len(reviews), batch_size):
+            batch = reviews[i:i + batch_size]
+            
+            try:
+                batch_assignments = self._assign_topics_batch(batch, all_topics)
+                topic_assignments.extend(batch_assignments)
+                time.sleep(0.5)  # Rate limiting
+            except Exception as e:
+                self.logger.error(f"Error assigning topics to batch: {e}")
+                # Fallback: assign randomly
+                for _ in batch:
+                    random_topic = np.random.choice(all_topics)
+                    topic_assignments.append({
+                        'level1_id': random_topic['level1_id'],
+                        'level1_name': random_topic['level1_name'],
+                        'level2_id': random_topic['level2_id'],
+                        'level2_name': random_topic['level2_name'],
+                        'confidence': 0.5
+                    })
+        
+        return topic_assignments
+    
+    def _assign_topics_batch(self, reviews, all_topics):
+        """Assign topics to a batch of reviews using LLM"""
+        review_texts = []
+        for i, review in enumerate(reviews):
+            text = review.get('text', '')[:300]
+            review_texts.append(f"Review {i+1}: {text}")
+        
+        reviews_combined = "\n".join(review_texts)
+        
+        topics_desc = "\n".join([f"{i+1}. {t['combined_desc']}" for i, t in enumerate(all_topics)])
+        
+        prompt = f"""
+        Assign each review to the MOST APPROPRIATE topic from the list below.
+        
+        Available Topics:
+        {topics_desc}
+        
+        Reviews:
+        {reviews_combined}
+        
+        Respond with ONLY a JSON array:
+        [
+            {{"review_number": 1, "topic_number": 3}},
+            {{"review_number": 2, "topic_number": 1}}
+        ]
+        
+        Topic number must be from 1 to {len(all_topics)}.
+        """
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=config.OPENAI_MODEL,
+                messages=[
+                    {"role": "system", "content": "You are an expert at categorizing customer feedback into predefined topics."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.2,
                 max_tokens=500
             )
             
-            result_text = response.choices[0].message.content
-            topic_data = json.loads(result_text.strip().replace('```json', '').replace('```', ''))
+            result_text = response.choices[0].message.content.strip()
+            result_text = result_text.replace('```json', '').replace('```', '').strip()
+            assignments = json.loads(result_text)
             
-            topic_data['cluster_id'] = cluster_id
-            topic_data['review_count'] = len(reviews)
+            batch_results = []
+            for assignment in assignments:
+                topic_idx = assignment.get('topic_number', 1) - 1
+                topic_idx = max(0, min(topic_idx, len(all_topics) - 1))  # Bounds check
+                
+                selected_topic = all_topics[topic_idx]
+                batch_results.append({
+                    'level1_id': selected_topic['level1_id'],
+                    'level1_name': selected_topic['level1_name'],
+                    'level2_id': selected_topic['level2_id'],
+                    'level2_name': selected_topic['level2_name'],
+                    'confidence': 0.85
+                })
             
-            return topic_data
+            return batch_results
             
         except Exception as e:
-            self.logger.error(f"Error analyzing cluster topic: {e}")
-            return {
-                'topic_name': f'Topic {cluster_id + 1}',
-                'description': 'Topic analysis failed',
-                'keywords': [],
-                'sentiment_tendency': 'neutral',
-                'cluster_id': cluster_id,
-                'review_count': len(reviews)
-            }
-            
-    def _assign_topics_to_reviews(self, embeddings, topics):
-        """Assign topics to all reviews based on similarity"""
-        # Get topic centroids (simplified approach)
+            self.logger.error(f"Error in batch topic assignment: {e}")
+            raise
+    
+    def _fallback_hierarchical_extraction(self, reviews):
+        """Fallback if hierarchical extraction fails"""
+        self.logger.warning("Using fallback hierarchical extraction")
+        
+        hierarchical_topics = self._create_basic_hierarchy()
+        
+        # Random assignment
         topic_assignments = []
+        all_topics = []
+        for level1 in hierarchical_topics:
+            for level2 in level1['level2_topics']:
+                all_topics.append({
+                    'level1_id': level1['id'],
+                    'level1_name': level1['name'],
+                    'level2_id': level2['id'],
+                    'level2_name': level2['name']
+                })
         
-        # For each review, find the most similar topic
-        for embedding in embeddings:
-            best_topic = 0
-            best_similarity = -1
-            
-            for topic_id, topic_data in topics.items():
-                # Simple assignment based on cluster ID
-                # In a more sophisticated approach, we'd compute similarity to topic centroid
-                similarity = np.random.random()  # Placeholder
-                
-                if similarity > best_similarity:
-                    best_similarity = similarity
-                    best_topic = topic_id
-                    
-            topic_assignments.append({
-                'topic_id': best_topic,
-                'topic_name': topics.get(best_topic, {}).get('topic_name', 'Unknown'),
-                'confidence': best_similarity
-            })
-            
-        return topic_assignments
-        
-    def _fallback_topic_extraction(self, reviews, num_topics):
-        """Fallback topic extraction using keyword frequency"""
-        # Simple keyword-based topic extraction
-        all_text = ' '.join([r.get('text', '') for r in reviews])
-        words = re.findall(r'\b\w+\b', all_text.lower())
-        
-        # Filter common words
-        filtered_words = [w for w in words if len(w) > 3 and w not in config.STOP_WORDS_CUSTOM]
-        word_freq = Counter(filtered_words)
-        
-        topics = {}
-        for i in range(min(num_topics, 5)):
-            top_words = [word for word, count in word_freq.most_common(10)[i*2:(i+1)*2]]
-            topics[i] = {
-                'topic_name': f'Topic {i+1}',
-                'description': f'Topic based on keywords: {", ".join(top_words)}',
-                'keywords': top_words,
-                'sentiment_tendency': 'neutral',
-                'cluster_id': i,
-                'review_count': len(reviews) // num_topics
-            }
-            
-        # Simple topic assignment
-        topic_assignments = []
         for _ in reviews:
+            random_topic = np.random.choice(all_topics)
             topic_assignments.append({
-                'topic_id': np.random.randint(0, len(topics)),
-                'topic_name': f'Topic {np.random.randint(1, len(topics)+1)}',
+                'level1_id': random_topic['level1_id'],
+                'level1_name': random_topic['level1_name'],
+                'level2_id': random_topic['level2_id'],
+                'level2_name': random_topic['level2_name'],
                 'confidence': 0.5
             })
-            
-        return topics, topic_assignments
+        
+        return hierarchical_topics, topic_assignments
         
     def analyze_trends(self, reviews):
         """Analyze sentiment and topic trends over time"""
@@ -417,7 +494,6 @@ class AIAnalyzer:
         
     def _analyze_sentiment_trends(self, df):
         """Analyze sentiment trends over time"""
-        # Group by time periods
         sentiment_trends = {}
         
         for period in config.TREND_PERIODS:
@@ -508,14 +584,14 @@ class AIAnalyzer:
             'total': len(sentiment_results)
         }
         
-        topic_summary = [
-            {
-                'name': topic['topic_name'],
-                'description': topic['description'],
-                'review_count': topic['review_count']
-            }
-            for topic in topics.values()
-        ]
+        # Format hierarchical topics for prompt
+        topic_summary = []
+        for level1 in topics:
+            topic_summary.append(f"**{level1['name']}**: {level1['description']}")
+            for level2 in level1.get('level2_topics', []):
+                topic_summary.append(f"  - {level2['name']}: {level2['description']}")
+        
+        topics_text = "\n".join(topic_summary)
         
         prompt = f"""
         Based on the customer review analysis below, provide strategic insights and recommendations.
@@ -526,8 +602,8 @@ class AIAnalyzer:
         - Negative: {sentiment_summary['negative']} ({sentiment_summary['negative']/sentiment_summary['total']*100:.1f}%)
         - Neutral: {sentiment_summary['neutral']} ({sentiment_summary['neutral']/sentiment_summary['total']*100:.1f}%)
         
-        Main Topics:
-        {json.dumps(topic_summary, indent=2)}
+        Topic Hierarchy:
+        {topics_text}
         
         Please provide:
         1. Overall sentiment assessment
@@ -540,7 +616,7 @@ class AIAnalyzer:
         """
         
         try:
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=config.OPENAI_MODEL,
                 messages=[
                     {"role": "system", "content": "You are a business analyst expert at interpreting customer feedback data and providing strategic insights."},
@@ -556,4 +632,3 @@ class AIAnalyzer:
         except Exception as e:
             self.logger.error(f"Error generating insights: {e}")
             return "AI insights generation failed. Please review the data manually."
-            
