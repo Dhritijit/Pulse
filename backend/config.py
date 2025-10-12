@@ -42,7 +42,10 @@ SITE_SELECTORS = {
         'rating': 'div[data-service-review-rating] img',
         'reviewer': 'span[data-consumer-name-typography="true"]',
         'date': 'time',
-        'pagination': 'a[data-pagination-button-next-label]'
+        # ✅ FIXED: Updated pagination selector based on current Trustpilot HTML
+        # Old: 'a[data-pagination-button-next-label]' (didn't exist)
+        # New: Using the correct attribute from the actual HTML
+        'pagination': 'a[name="pagination-button-next"]'
     },
     'glassdoor.com': {
         'review_container': 'li[data-test="employer-review"]',
@@ -69,12 +72,12 @@ SITE_SELECTORS = {
         'pagination': 'a[aria-label="Next"]'
     },
     'glassdoor.co.in': {
-    'review_container': '[data-test="employer-review"], .review, .employerReview',
-    'review_text': '[data-test="reviewBodyText"], .review-details, .reviewBodyText',
-    'rating': '[data-test="rating"], .ratingNumber, [class*="rating"]',
-    'reviewer': '[data-test="employee-review-reviewer"], .reviewer, .authorName',
-    'date': '[data-test="review-date"], .review-date, [class*="date"]',
-    'pagination': '[data-test="pagination-next"], .next, [aria-label="Next"]'
+        'review_container': '[data-test="employer-review"], .review, .employerReview',
+        'review_text': '[data-test="reviewBodyText"], .review-details, .reviewBodyText',
+        'rating': '[data-test="rating"], .ratingNumber, [class*="rating"]',
+        'reviewer': '[data-test="employee-review-reviewer"], .reviewer, .authorName',
+        'date': '[data-test="review-date"], .review-date, [class*="date"]',
+        'pagination': '[data-test="pagination-next"], .next, [aria-label="Next"]'
     },
 }
 # Analysis Configuration
@@ -107,7 +110,7 @@ STOP_WORDS_CUSTOM = [
 ]
 
 # Topic Modeling Configuration
-NUM_TOPICS = 5  # Number of topics to extract
+# REMOVED: NUM_TOPICS = 5  # Number of topics to extract (LLM now determines automatically)
 MIN_TOPIC_WORDS = 10  # Minimum words per topic
 
 # Trend Analysis Configuration

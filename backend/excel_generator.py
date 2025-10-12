@@ -1,5 +1,5 @@
 """
-Excel output generator - Updated to include taxonomy matching results
+Excel output generator - UPDATED for hierarchical Level 1 → Level 2 topics
 """
 
 import pandas as pd
@@ -20,7 +20,7 @@ class ExcelGenerator:
         
     def generate_report(self, reviews, sentiment_results, topics, topic_assignments, 
                        trends, insights, taxonomy_matches=None):
-        """Generate comprehensive Excel report with taxonomy data"""
+        """Generate comprehensive Excel report with hierarchical topics"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = config.EXCEL_FILENAME_TEMPLATE.format(timestamp=timestamp)
         
@@ -133,8 +133,8 @@ class ExcelGenerator:
                 'Sentiment_Confidence': sentiment.get('confidence', ''),
                 'Emotions': ', '.join(sentiment.get('emotions', [])),
                 'Themes': ', '.join(sentiment.get('themes', [])),
-                'Topic_ID': topic.get('topic_id', ''),
-                'Topic_Name': topic.get('topic_name', ''),
+                'Level1_Topic': topic.get('level1_name', ''),
+                'Level2_Topic': topic.get('level2_name', ''),
                 'Topic_Confidence': topic.get('confidence', ''),
                 'Analysis_Method': sentiment.get('analysis_method', '')
             }
@@ -175,7 +175,8 @@ class ExcelGenerator:
             'Reviewer': 20,
             'Emotions': 25,
             'Themes': 25,
-            'Topic_Name': 20,
+            'Level1_Topic': 20,
+            'Level2_Topic': 20,
             'Taxonomy_Category_1': 25,
             'Taxonomy_Category_2': 25,
             'Taxonomy_Category_3': 25
@@ -187,29 +188,167 @@ class ExcelGenerator:
                 worksheet.set_column(col_idx, col_idx, width)
         
         # Apply conditional formatting for sentiment
-        sentiment_col = df.columns.get_loc('Sentiment')
-        last_row = len(df)
+        if 'Sentiment' in df.columns:
+            sentiment_col = df.columns.get_loc('Sentiment')
+            last_row = len(df)
+            
+            worksheet.conditional_format(1, sentiment_col, last_row, sentiment_col, {
+                'type': 'text',
+                'criteria': 'containing',
+                'value': 'positive',
+                'format': formats['positive']
+            })
+            
+            worksheet.conditional_format(1, sentiment_col, last_row, sentiment_col, {
+                'type': 'text',
+                'criteria': 'containing',
+                'value': 'negative',
+                'format': formats['negative']
+            })
+            
+            worksheet.conditional_format(1, sentiment_col, last_row, sentiment_col, {
+                'type': 'text',
+                'criteria': 'containing',
+                'value': 'neutral',
+                'format': formats['neutral']
+            })
+    
+    def _create_sentiment_analysis_sheet(self, sentiment_results, writer, formats):
+        """Create sentiment analysis summary sheet"""
+        self.logger.info("Creating sentiment analysis sheet")
         
-        worksheet.conditional_format(1, sentiment_col, last_row, sentiment_col, {
-            'type': 'text',
-            'criteria': 'containing',
-            'value': 'positive',
-            'format': formats['positive']
-        })
+        sheet_name = config.EXCEL_SHEETS['sentiment_analysis']
+        workbook = writer.book
+        worksheet = workbook.add_worksheet(sheet_name)
         
-        worksheet.conditional_format(1, sentiment_col, last_row, sentiment_col, {
-            'type': 'text',
-            'criteria': 'containing',
-            'value': 'negative',
-            'format': formats['negative']
-        })
+        # Title
+        worksheet.write(0, 0, "Sentiment Analysis Summary", formats['title'])
         
-        worksheet.conditional_format(1, sentiment_col, last_row, sentiment_col, {
-            'type': 'text',
-            'criteria': 'containing',
-            'value': 'neutral',
-            'format': formats['neutral']
-        })
+        # Overall sentiment distribution
+        sentiment_counts = Counter([r.get('sentiment', 'unknown') for r in sentiment_results])
+        total_reviews = len(sentiment_results)
+        
+        # Sentiment summary table
+        row = 3
+        worksheet.write(row, 0, "Sentiment Distribution", formats['header'])
+        worksheet.write(row, 1, "Count", formats['header'])
+        worksheet.write(row, 2, "Percentage", formats['header'])
+        
+        row += 1
+        for sentiment, count in sentiment_counts.items():
+            percentage = count / total_reviews if total_reviews > 0 else 0
+            worksheet.write(row, 0, sentiment.title(), formats['data'])
+            worksheet.write(row, 1, count, formats['number'])
+            worksheet.write(row, 2, percentage, formats['percentage'])
+            row += 1
+        
+        # Confidence analysis
+        row += 2
+        worksheet.write(row, 0, "Confidence Analysis", formats['header'])
+        row += 1
+        
+        confidences = [r.get('confidence', 0) for r in sentiment_results if r.get('confidence')]
+        if confidences:
+            avg_confidence = np.mean(confidences)
+            median_confidence = np.median(confidences)
+            
+            worksheet.write(row, 0, "Average Confidence", formats['data'])
+            worksheet.write(row, 1, avg_confidence, formats['percentage'])
+            row += 1
+            
+            worksheet.write(row, 0, "Median Confidence", formats['data'])
+            worksheet.write(row, 1, median_confidence, formats['percentage'])
+            row += 1
+        
+        # Emotion analysis
+        all_emotions = []
+        for result in sentiment_results:
+            all_emotions.extend(result.get('emotions', []))
+        
+        if all_emotions:
+            emotion_counts = Counter(all_emotions)
+            
+            row += 2
+            worksheet.write(row, 0, "Top Emotions Detected", formats['header'])
+            worksheet.write(row, 1, "Frequency", formats['header'])
+            row += 1
+            
+            for emotion, count in emotion_counts.most_common(10):
+                worksheet.write(row, 0, emotion.title(), formats['data'])
+                worksheet.write(row, 1, count, formats['number'])
+                row += 1
+    
+    def _create_topic_analysis_sheet(self, topics, topic_assignments, writer, formats):
+        """Create hierarchical topic analysis sheet (Level 1 → Level 2)"""
+        self.logger.info("Creating hierarchical topic analysis sheet")
+        
+        sheet_name = config.EXCEL_SHEETS['topic_modeling']
+        workbook = writer.book
+        worksheet = workbook.add_worksheet(sheet_name)
+        
+        # Title
+        worksheet.write(0, 0, "Hierarchical Topic Analysis (Level 1 → Level 2)", formats['title'])
+        
+        # FIXED: Iterate over list of topics, not .items()
+        row = 3
+        worksheet.write(row, 0, "Level 1 Topic", formats['header'])
+        worksheet.write(row, 1, "Description", formats['header'])
+        worksheet.write(row, 2, "Level 2 Topics", formats['header'])
+        
+        row += 1
+        
+        # Display hierarchical structure
+        for level1_topic in topics:
+            worksheet.write(row, 0, level1_topic.get('name', ''), formats['data'])
+            worksheet.write(row, 1, level1_topic.get('description', ''), formats['data'])
+            
+            # Get Level 2 topics
+            level2_topics = level1_topic.get('level2_topics', [])
+            level2_names = [l2.get('name', '') for l2 in level2_topics]
+            worksheet.write(row, 2, ', '.join(level2_names), formats['data'])
+            row += 1
+        
+        # Topic assignment distribution
+        row += 2
+        worksheet.write(row, 0, "Level 1 Topic Distribution", formats['header'])
+        worksheet.write(row, 1, "Review Count", formats['header'])
+        worksheet.write(row, 2, "Percentage", formats['header'])
+        
+        row += 1
+        
+        # Count Level 1 topics
+        level1_counts = Counter([ta.get('level1_name', 'Unknown') for ta in topic_assignments])
+        total_assignments = len(topic_assignments)
+        
+        for topic_name, count in level1_counts.most_common():
+            percentage = count / total_assignments if total_assignments > 0 else 0
+            worksheet.write(row, 0, topic_name, formats['data'])
+            worksheet.write(row, 1, count, formats['number'])
+            worksheet.write(row, 2, percentage, formats['percentage'])
+            row += 1
+        
+        # Level 2 distribution
+        row += 2
+        worksheet.write(row, 0, "Level 2 Topic Distribution", formats['header'])
+        worksheet.write(row, 1, "Review Count", formats['header'])
+        worksheet.write(row, 2, "Percentage", formats['header'])
+        
+        row += 1
+        
+        # Count Level 2 topics
+        level2_counts = Counter([ta.get('level2_name', 'Unknown') for ta in topic_assignments])
+        
+        for topic_name, count in level2_counts.most_common(20):  # Top 20
+            percentage = count / total_assignments if total_assignments > 0 else 0
+            worksheet.write(row, 0, topic_name, formats['data'])
+            worksheet.write(row, 1, count, formats['number'])
+            worksheet.write(row, 2, percentage, formats['percentage'])
+            row += 1
+        
+        # Set column widths
+        worksheet.set_column(0, 0, 30)
+        worksheet.set_column(1, 1, 50)
+        worksheet.set_column(2, 2, 40)
     
     def _create_taxonomy_analysis_sheet(self, taxonomy_matches, writer, formats):
         """Create dedicated sheet for taxonomy analysis"""
@@ -297,121 +436,6 @@ class ExcelGenerator:
         worksheet.set_column(1, 1, 15)
         worksheet.set_column(2, 2, 15)
     
-    def _create_sentiment_analysis_sheet(self, sentiment_results, writer, formats):
-        """Create sentiment analysis summary sheet"""
-        self.logger.info("Creating sentiment analysis sheet")
-        
-        sheet_name = config.EXCEL_SHEETS['sentiment_analysis']
-        workbook = writer.book
-        worksheet = workbook.add_worksheet(sheet_name)
-        
-        # Title
-        worksheet.write(0, 0, "Sentiment Analysis Summary", formats['title'])
-        
-        # Overall sentiment distribution
-        sentiment_counts = Counter([r.get('sentiment', 'unknown') for r in sentiment_results])
-        total_reviews = len(sentiment_results)
-        
-        # Sentiment summary table
-        row = 3
-        worksheet.write(row, 0, "Sentiment Distribution", formats['header'])
-        worksheet.write(row, 1, "Count", formats['header'])
-        worksheet.write(row, 2, "Percentage", formats['header'])
-        
-        row += 1
-        for sentiment, count in sentiment_counts.items():
-            percentage = count / total_reviews if total_reviews > 0 else 0
-            worksheet.write(row, 0, sentiment.title(), formats['data'])
-            worksheet.write(row, 1, count, formats['number'])
-            worksheet.write(row, 2, percentage, formats['percentage'])
-            row += 1
-        
-        # Confidence analysis
-        row += 2
-        worksheet.write(row, 0, "Confidence Analysis", formats['header'])
-        row += 1
-        
-        confidences = [r.get('confidence', 0) for r in sentiment_results if r.get('confidence')]
-        if confidences:
-            avg_confidence = np.mean(confidences)
-            median_confidence = np.median(confidences)
-            
-            worksheet.write(row, 0, "Average Confidence", formats['data'])
-            worksheet.write(row, 1, avg_confidence, formats['percentage'])
-            row += 1
-            
-            worksheet.write(row, 0, "Median Confidence", formats['data'])
-            worksheet.write(row, 1, median_confidence, formats['percentage'])
-            row += 1
-        
-        # Emotion analysis
-        all_emotions = []
-        for result in sentiment_results:
-            all_emotions.extend(result.get('emotions', []))
-        
-        if all_emotions:
-            emotion_counts = Counter(all_emotions)
-            
-            row += 2
-            worksheet.write(row, 0, "Top Emotions Detected", formats['header'])
-            worksheet.write(row, 1, "Frequency", formats['header'])
-            row += 1
-            
-            for emotion, count in emotion_counts.most_common(10):
-                worksheet.write(row, 0, emotion.title(), formats['data'])
-                worksheet.write(row, 1, count, formats['number'])
-                row += 1
-    
-    def _create_topic_analysis_sheet(self, topics, topic_assignments, writer, formats):
-        """Create topic analysis sheet"""
-        self.logger.info("Creating topic analysis sheet")
-        
-        sheet_name = config.EXCEL_SHEETS['topic_modeling']
-        workbook = writer.book
-        worksheet = workbook.add_worksheet(sheet_name)
-        
-        # Title
-        worksheet.write(0, 0, "Topic Analysis", formats['title'])
-        
-        # Topic summary table
-        row = 3
-        worksheet.write(row, 0, "Topic Name", formats['header'])
-        worksheet.write(row, 1, "Description", formats['header'])
-        worksheet.write(row, 2, "Keywords", formats['header'])
-        worksheet.write(row, 3, "Review Count", formats['header'])
-        worksheet.write(row, 4, "Sentiment Tendency", formats['header'])
-        
-        row += 1
-        for topic_id, topic in topics.items():
-            worksheet.write(row, 0, topic.get('topic_name', ''), formats['data'])
-            worksheet.write(row, 1, topic.get('description', ''), formats['data'])
-            worksheet.write(row, 2, ', '.join(topic.get('keywords', [])), formats['data'])
-            worksheet.write(row, 3, topic.get('review_count', 0), formats['number'])
-            worksheet.write(row, 4, topic.get('sentiment_tendency', ''), formats['data'])
-            row += 1
-        
-        # Topic distribution
-        topic_counts = Counter([ta.get('topic_name', 'Unknown') for ta in topic_assignments])
-        
-        row += 2
-        worksheet.write(row, 0, "Topic Distribution", formats['header'])
-        worksheet.write(row, 1, "Review Count", formats['header'])
-        worksheet.write(row, 2, "Percentage", formats['header'])
-        
-        row += 1
-        total_assignments = len(topic_assignments)
-        for topic_name, count in topic_counts.most_common():
-            percentage = count / total_assignments if total_assignments > 0 else 0
-            worksheet.write(row, 0, topic_name, formats['data'])
-            worksheet.write(row, 1, count, formats['number'])
-            worksheet.write(row, 2, percentage, formats['percentage'])
-            row += 1
-        
-        # Set column widths
-        worksheet.set_column(0, 0, 25)
-        worksheet.set_column(1, 1, 50)
-        worksheet.set_column(2, 2, 30)
-    
     def _create_trend_analysis_sheet(self, trends, writer, formats):
         """Create trend analysis sheet"""
         self.logger.info("Creating trend analysis sheet")
@@ -473,7 +497,7 @@ class ExcelGenerator:
     
     def _create_executive_summary_sheet(self, reviews, sentiment_results, topics, 
                                        trends, insights, taxonomy_matches, writer, formats):
-        """Create executive summary sheet"""
+        """Create executive summary sheet with hierarchical topics"""
         self.logger.info("Creating executive summary sheet")
         
         sheet_name = config.EXCEL_SHEETS['summary']
@@ -500,7 +524,7 @@ class ExcelGenerator:
             ("Neutral Reviews", sentiment_counts.get('neutral', 0)),
             ("Positive Percentage", f"{sentiment_counts.get('positive', 0)/total_reviews*100:.1f}%" if total_reviews > 0 else "0%"),
             ("Negative Percentage", f"{sentiment_counts.get('negative', 0)/total_reviews*100:.1f}%" if total_reviews > 0 else "0%"),
-            ("Number of Topics Identified", len(topics))
+            ("Number of Level 1 Topics", len(topics))
         ]
         
         # Add taxonomy metrics if available
@@ -525,14 +549,14 @@ class ExcelGenerator:
             worksheet.write(row, 1, count, formats['data'])
             row += 1
         
-        # Top topics
+        # FIXED: Main Level 1 topics - iterate over list
         row += 1
-        worksheet.write(row, 0, "Main Topics", formats['header'])
+        worksheet.write(row, 0, "Main Level 1 Topics", formats['header'])
         row += 1
         
-        for topic_id, topic in list(topics.items())[:5]:
-            worksheet.write(row, 0, topic.get('topic_name', ''), formats['data'])
-            worksheet.write(row, 1, topic.get('description', ''), formats['data'])
+        for level1_topic in topics[:5]:  # Top 5 Level 1 topics
+            worksheet.write(row, 0, level1_topic.get('name', ''), formats['data'])
+            worksheet.write(row, 1, level1_topic.get('description', ''), formats['data'])
             row += 1
         
         # Top taxonomy categories (if available)
