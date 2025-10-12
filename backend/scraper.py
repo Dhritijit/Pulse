@@ -1,6 +1,7 @@
 """
 Universal Web Scraper for Review Sites
 Handles multiple review platforms dynamically
+Enhanced with smart pagination detection
 """
 
 import requests
@@ -9,7 +10,7 @@ import random
 import logging
 import re
 from datetime import datetime
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urlparse, urljoin, parse_qs, urlunparse, urlencode
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -323,23 +324,242 @@ class ReviewScraper:
             return False
             
         return True
+    
+    # ========================================================================
+    # 🆕 NEW METHODS: Smart Pagination Detection & URL Building
+    # ========================================================================
+    
+    def detect_pagination_pattern(self, url):
+        """
+        Detect pagination URL pattern from the current URL
         
-    def get_pagination_urls(self, html_content, site_info, current_url):
-        """Extract pagination URLs"""
-        soup = BeautifulSoup(html_content, 'html.parser')
+        Returns:
+            dict: {
+                'pattern_type': 'query_param' | 'path_segment' | 'none',
+                'param_name': 'page' (if query_param),
+                'current_page': 2 (if detected),
+                'base_url': URL without page parameter
+            }
+        """
+        try:
+            parsed = urlparse(url)
+            query_params = parse_qs(parsed.query)
+            
+            # Check for common page parameter names
+            page_param_names = ['page', 'p', 'pg', 'pageNumber', 'pageNum']
+            
+            for param_name in page_param_names:
+                if param_name in query_params:
+                    current_page = int(query_params[param_name][0])
+                    
+                    # Build base URL without the page parameter
+                    clean_params = {k: v for k, v in query_params.items() if k != param_name}
+                    query_string = urlencode(clean_params, doseq=True)
+                    base_url = urlunparse((
+                        parsed.scheme,
+                        parsed.netloc,
+                        parsed.path,
+                        parsed.params,
+                        query_string,
+                        ''
+                    ))
+                    
+                    self.logger.info(f"✅ Detected pagination pattern: ?{param_name}={current_page}")
+                    
+                    return {
+                        'pattern_type': 'query_param',
+                        'param_name': param_name,
+                        'current_page': current_page,
+                        'base_url': base_url
+                    }
+            
+            # Check for path-based pagination (e.g., /page/2/)
+            path_match = re.search(r'/page[s]?/(\d+)', parsed.path, re.I)
+            if path_match:
+                current_page = int(path_match.group(1))
+                base_path = re.sub(r'/page[s]?/\d+', '', parsed.path, flags=re.I)
+                base_url = urlunparse((
+                    parsed.scheme,
+                    parsed.netloc,
+                    base_path,
+                    parsed.params,
+                    parsed.query,
+                    ''
+                ))
+                
+                self.logger.info(f"✅ Detected path-based pagination: /page/{current_page}")
+                
+                return {
+                    'pattern_type': 'path_segment',
+                    'current_page': current_page,
+                    'base_url': base_url
+                }
+            
+            # No pagination detected in URL - might be page 1
+            self.logger.info("ℹ️  No pagination pattern in URL - assuming page 1")
+            return {
+                'pattern_type': 'query_param',  # Assume query param for building
+                'param_name': 'page',  # Most common
+                'current_page': 1,
+                'base_url': url
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error detecting pagination pattern: {e}")
+            return {'pattern_type': 'none'}
+    
+    def build_pagination_urls(self, pattern_info, start_page, end_page):
+        """
+        Build pagination URLs based on detected pattern
+        
+        Args:
+            pattern_info: dict from detect_pagination_pattern()
+            start_page: int - starting page number
+            end_page: int - ending page number
+            
+        Returns:
+            list of URLs
+        """
         urls = []
         
         try:
+            if pattern_info['pattern_type'] == 'none':
+                return urls
+            
+            base_url = pattern_info['base_url']
+            
+            if pattern_info['pattern_type'] == 'query_param':
+                param_name = pattern_info['param_name']
+                parsed = urlparse(base_url)
+                
+                for page_num in range(start_page, end_page + 1):
+                    # Add page parameter to existing query string
+                    query_params = parse_qs(parsed.query)
+                    query_params[param_name] = [str(page_num)]
+                    query_string = urlencode(query_params, doseq=True)
+                    
+                    page_url = urlunparse((
+                        parsed.scheme,
+                        parsed.netloc,
+                        parsed.path,
+                        parsed.params,
+                        query_string,
+                        ''
+                    ))
+                    urls.append(page_url)
+                    
+            elif pattern_info['pattern_type'] == 'path_segment':
+                parsed = urlparse(base_url)
+                
+                for page_num in range(start_page, end_page + 1):
+                    page_path = f"{parsed.path}/page/{page_num}"
+                    page_url = urlunparse((
+                        parsed.scheme,
+                        parsed.netloc,
+                        page_path,
+                        parsed.params,
+                        parsed.query,
+                        ''
+                    ))
+                    urls.append(page_url)
+            
+            self.logger.info(f"🔨 Built {len(urls)} pagination URLs (pages {start_page}-{end_page})")
+            
+        except Exception as e:
+            self.logger.error(f"Error building pagination URLs: {e}")
+            
+        return urls
+        
+    def get_pagination_urls(self, html_content, site_info, current_url):
+        """
+        ENHANCED: Extract pagination URLs using hybrid approach
+        
+        Strategy:
+        1. Try to detect URL pattern and build next URL automatically
+        2. If pattern detection fails, fall back to selector-based extraction
+        3. Return list of next page URLs to scrape
+        """
+        urls = []
+        
+        try:
+            # ============================================================
+            # STRATEGY 1: Smart URL Pattern Detection & Building
+            # ============================================================
+            self.logger.info("🔍 Attempting smart pagination detection...")
+            
+            pattern_info = self.detect_pagination_pattern(current_url)
+            
+            if pattern_info['pattern_type'] != 'none':
+                current_page = pattern_info.get('current_page', 1)
+                next_page = current_page + 1
+                
+                # Build just the next page URL
+                next_urls = self.build_pagination_urls(pattern_info, next_page, next_page)
+                
+                if next_urls:
+                    urls.extend(next_urls)
+                    self.logger.info(f"✅ Built next page URL using pattern: {next_urls[0]}")
+                    return urls  # Success! Return the built URLs
+            
+            # ============================================================
+            # STRATEGY 2: Selector-Based Extraction (Fallback)
+            # ============================================================
+            self.logger.info("🔄 Pattern detection didn't work, trying selector-based extraction...")
+            
             if site_info['selectors'] and 'pagination' in site_info['selectors']:
+                soup = BeautifulSoup(html_content, 'html.parser')
                 next_links = soup.select(site_info['selectors']['pagination'])
+                
+                self.logger.info(f"🔎 Found {len(next_links)} elements matching pagination selector")
+                
                 for link in next_links:
                     href = link.get('href')
                     if href:
                         full_url = urljoin(current_url, href)
                         urls.append(full_url)
+                        self.logger.info(f"✅ Extracted pagination URL from selector: {full_url}")
+                
+                if urls:
+                    return urls  # Success with selectors!
+                else:
+                    self.logger.warning("⚠️  Pagination selector matched elements but no href found")
+            else:
+                self.logger.warning("⚠️  No pagination selector defined for this site")
+            
+            # ============================================================
+            # STRATEGY 3: Last Resort - Try Generic Patterns
+            # ============================================================
+            if not urls:
+                self.logger.info("🔄 Trying generic pagination patterns...")
+                soup = BeautifulSoup(html_content, 'html.parser')
+                
+                # Try common generic selectors
+                generic_selectors = [
+                    'a[rel="next"]',
+                    'a:contains("Next")',
+                    'a:contains("next")',
+                    'a[aria-label*="next" i]',
+                    'button[aria-label*="next" i]'
+                ]
+                
+                for selector in generic_selectors:
+                    try:
+                        next_links = soup.select(selector)
+                        for link in next_links:
+                            href = link.get('href')
+                            if href:
+                                full_url = urljoin(current_url, href)
+                                urls.append(full_url)
+                                self.logger.info(f"✅ Found pagination using generic pattern: {selector}")
+                                return urls
+                    except:
+                        continue
                         
         except Exception as e:
-            self.logger.error(f"Error extracting pagination URLs: {e}")
+            self.logger.error(f"❌ Error in pagination URL extraction: {e}")
+            
+        if not urls:
+            self.logger.warning("⚠️  No pagination URLs found - this might be the last page")
             
         return urls
         
@@ -392,7 +612,7 @@ class ReviewScraper:
                     self.logger.info(f"Reached maximum review limit: {config.MAX_REVIEWS_PER_SITE}")
                     break
                     
-                # Get pagination URLs
+                # Get pagination URLs using enhanced method
                 next_urls = self.get_pagination_urls(html_content, site_info, current_url)
                 for next_url in next_urls:
                     if next_url not in processed_urls:
