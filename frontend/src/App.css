@@ -20,24 +20,28 @@ body[data-theme="dark"] {
   --button-hover: #2d5a7b;
   --nav-active-bg: linear-gradient(135deg, #1e3a5f 0%, #2d5a7b 100%);
   --card-bg: #0a1929;
+  --sidebar-bg: #0a1929;
+  --topbar-bg: #0a1929;
 }
 
 /* ========================================
-   LIGHT MODE
+   LIGHT MODE - CUSTOM COLORS
    ======================================== */
 body[data-theme="light"] {
-  --bg-primary: #f8fafc;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #f1f5f9;
-  --border-color: #e2e8f0;
+  --bg-primary: #FAF6E9;
+  --bg-secondary: #819A91;
+  --bg-tertiary: #a8bfb5;
+  --border-color: #6d8178;
   --text-primary: #1e293b;
-  --text-secondary: #64748b;
+  --text-secondary: #475569;
   --accent-primary: #10b981;
   --accent-secondary: #059669;
-  --button-bg: #f1f5f9;
-  --button-hover: #e2e8f0;
-  --nav-active-bg: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  --button-bg: #a8bfb5;
+  --button-hover: #8faa9f;
+  --nav-active-bg: linear-gradient(135deg, #6d8178 0%, #819A91 100%);
   --card-bg: #ffffff;
+  --sidebar-bg: #819A91;
+  --topbar-bg: #819A91;
 }
 
 body {
@@ -58,7 +62,7 @@ body {
    ======================================== */
 .sidebar {
   width: 280px;
-  background: var(--bg-secondary);
+  background: var(--sidebar-bg);
   border-right: 1px solid var(--border-color);
   padding: 0;
   position: fixed;
@@ -95,9 +99,22 @@ body {
   letter-spacing: 0.5px;
 }
 
-/* CHANGE #4 & #5: Fixed sidebar section margin */
+/* UPDATED: Increased spacing between logo and Configuration section by 100px (from 55px to 155px) */
 .sidebar > .sidebar-section:first-of-type {
-  margin-top: 30px; /* Changed from 25px to 30px */
+  margin-top: 155px !important;
+}
+
+/* Alternative selector - in case first-of-type doesn't work */
+.sidebar-section:first-child {
+  margin-top: 155px !important;
+}
+
+.sidebar .sidebar-section {
+  margin-top: 0;
+}
+
+.sidebar .sidebar-section:nth-child(2) {
+  margin-top: 25px !important;
 }
 
 .sidebar-section {
@@ -224,7 +241,7 @@ body {
    TOP NAVIGATION - FIXED LAYOUT
    ======================================== */
 .top-nav {
-  background: var(--bg-secondary);
+  background: var(--topbar-bg);
   border-bottom: 1px solid var(--border-color);
   padding: 16px 40px;
   display: flex;
@@ -322,6 +339,19 @@ body {
   cursor: not-allowed;
 }
 
+/* Refresh Button Styling */
+.nav-button.refresh-button {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: #ffffff;
+  margin-left: auto;
+}
+
+.nav-button.refresh-button:hover {
+  background: linear-gradient(135deg, #ea580c 0%, #dc2626 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+}
+
 /* Top Nav Right Section */
 .top-nav-right {
   display: flex;
@@ -342,6 +372,7 @@ body {
   align-items: center;
   justify-content: center;
   transition: all 0.3s ease;
+  font-size: 18px;
 }
 
 .theme-toggle:hover {
