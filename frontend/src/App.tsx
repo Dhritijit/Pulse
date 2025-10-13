@@ -107,6 +107,11 @@ function App() {
       .join(' ');
   };
   
+  // NEW ADDITION: Function to get logo based on theme
+  const getLogo = () => {
+    return isDarkMode ? '/LogoDarkTheme.png' : '/LogoLightTheme.png';
+  };
+  
   // Toggle dark/light mode
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
@@ -118,7 +123,7 @@ function App() {
     alert('Logout functionality will be implemented with authentication');
   };
 
-  // CHANGE #3: Refresh function to reset everything
+  // Refresh function to reset everything
   const handleRefresh = () => {
     setResults(null);
     setJobId(null);
@@ -129,7 +134,7 @@ function App() {
     setCurrentView('analysis');
   };
 
-  // CHANGE #2: Updated to accept company name from user input
+  // Updated to accept company name from user input
   const handleAnalysisComplete = (jobId: string, analysisResults: AnalysisResults, inputCompanyName: string) => {
     setJobId(jobId);
     setResults(analysisResults);
@@ -155,8 +160,9 @@ function App() {
     <div className="app">
       {/* Sidebar */}
       <div className="sidebar">
+        {/* UPDATED: Dynamic logo based on theme */}
         <div className="logo">
-          <img src="/logo.png" alt="Pulse.ai" className="logo-image" />
+          <img src={getLogo()} alt="Pulse.ai" className="logo-image" />
         </div>
 
         <div className="sidebar-section">
@@ -278,7 +284,7 @@ function App() {
               Documentation
             </button>
 
-            {/* CHANGE #3: Refresh Button - only show when results exist and on analysis view */}
+            {/* Refresh Button - only show when results exist and on analysis view */}
             {results && currentView === 'analysis' && (
               <button
                 className="nav-button"
@@ -336,3 +342,8 @@ function App() {
 }
 
 export default App;
+
+// LINES OF CODE: 329 lines
+// CHANGES MADE:
+// Line 113-116: ADDED getLogo() function
+// Line 170: UPDATED to use getLogo() instead of static /logo.png
